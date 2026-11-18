@@ -23,6 +23,7 @@ namespace DeskBoxToDo
         public bool TodoWidgetOnDesktop;
         public string TodoWidgetBounds = "";
         public string TodoWindowSize = "";
+        public bool TodoWindowOpen;
         public string ReminderSound = "";
         public int GlassOpacityPercent;
         public int GlassQuality;
@@ -90,6 +91,7 @@ namespace DeskBoxToDo
                 config.TodoWidgetOnDesktop = ReadBool(raw, "todoWidgetOnDesktop", config.TodoWidgetOnDesktop);
                 config.TodoWidgetBounds = ReadString(raw, "todoWidgetBounds", config.TodoWidgetBounds);
                 config.TodoWindowSize = ReadString(raw, "todoWindowSize", config.TodoWindowSize);
+                config.TodoWindowOpen = ReadBool(raw, "todoWindowOpen", config.TodoWindowOpen);
                 config.ReminderSound = ReadString(raw, "reminderSound", config.ReminderSound);
                 config.GlassOpacityPercent = ReadInt(raw, "glassOpacityPercent", config.GlassOpacityPercent);
                 config.GlassQuality = ReadInt(raw, "glassQuality", config.GlassQuality);
@@ -142,6 +144,7 @@ namespace DeskBoxToDo
                     { "todoWidgetOnDesktop", TodoWidgetOnDesktop },
                     { "todoWidgetBounds", TodoWidgetBounds },
                     { "todoWindowSize", TodoWindowSize },
+                    { "todoWindowOpen", TodoWindowOpen },
                     { "reminderSound", ReminderSound },
                     { "glassOpacityPercent", GlassOpacityPercent },
                     { "glassQuality", GlassQuality },

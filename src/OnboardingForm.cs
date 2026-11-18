@@ -191,7 +191,7 @@ namespace DeskBoxToDo
 
         private void Render()
         {
-            int total = 4;
+            int total = 6;
             _stepLabel.Text = string.Format("{0} / {1}", _page + 1, total);
 
             switch (_page)
@@ -227,12 +227,37 @@ namespace DeskBoxToDo
                     _hint.Text = "选一个就行，之后也能改。";
                     break;
 
+                case 3:
+                    _title.Text = "待办里能做什么";
+                    _body.Text =
+                        "· 页签：全部 / 今天 / 重要 / 完成，数量实时统计\r\n" +
+                        "· 颜色：任务左侧的竖条；点上方色点只看某一种颜色\r\n" +
+                        "· 重要：右侧金色 ★，在详情里点 ☆ 切换\r\n" +
+                        "· 重复：每天 / 每周 / 每月 / 工作日，完成后自动生成下一次\r\n" +
+                        "· 提醒：到点弹毛玻璃提示窗并播放提醒音乐（可换）\r\n\r\n" +
+                        "拖动窗口边缘可缩放，右侧有滚动条可拖。";
+                    _hint.Text = "这些都藏在右键菜单和详情页里。";
+                    break;
+
+                case 4:
+                    _title.Text = "变成桌面小组件";
+                    _body.Text =
+                        "两种方式把待办放到桌面上：\r\n\r\n" +
+                        "① 托盘图标右键 →「固定在桌面（小组件）」\r\n" +
+                        "② 打开待办窗口，点右上角的「桌面」按钮（点一次=贴桌面，再点=置顶）\r\n\r\n" +
+                        "取消：托盘菜单再点一次「固定在桌面（小组件）」，\r\n" +
+                        "或把窗口右上角按钮点回普通浮窗即可。\r\n\r\n" +
+                        "贴桌面时窗口在其它窗口下面，双击托盘图标可以把它叫到前面。";
+                    _hint.Text = "小组件的位置会被记住，下次开机回到原处。";
+                    break;
+
                 default:
                     _title.Text = "两件小事";
                     _body.Text =
                         "开机自启：让它在后台待着，随时按快捷键都能用。\r\n\r\n" +
-                        "AI 解析（可选）：默认是手动模式——只有你在确认窗点「AI 重解析」才会调用，" +
-                        "需要先去设置里填 API Key。不想用就保持关闭，规则解析完全够用。";
+                        "AI 解析（可选）：默认手动——只有点「AI 重解析」才调用，需要先填 API Key。\r\n\r\n" +
+                        "自动更新：默认每天检查一次，发现新版本会自动下载安装并重启；" +
+                        "也可以在托盘「自动更新设置…」里改成只提示或关掉。";
                     _hint.Text = "准备好后点「开始使用」。";
                     break;
             }
@@ -242,8 +267,8 @@ namespace DeskBoxToDo
             _deskboxToggle.Visible = _page == 2;
             _deskboxState.Visible = _page == 2;
             _download.Visible = _page == 2 && !TodoBackend.DeskBoxAvailable(_config);
-            _autoStartToggle.Visible = _page == 3;
-            _aiToggle.Visible = _page == 3;
+            _autoStartToggle.Visible = _page == 5;
+            _aiToggle.Visible = _page == 5;
             _back.Visible = _page > 0;
             _next.Text = _page == total - 1 ? "开始使用" : "下一步";
             Invalidate(true);
@@ -288,7 +313,7 @@ namespace DeskBoxToDo
                 _currentModifiers = 0;
             }
 
-            if (_page < 3)
+            if (_page < 5)
             {
                 _page++;
                 Render();

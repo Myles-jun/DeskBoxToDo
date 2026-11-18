@@ -201,7 +201,7 @@ namespace DeskBoxToDo
             };
             firstScan.Start();
 
-            if (_config.TodoWidgetOnDesktop)
+            if (_config.TodoWidgetOnDesktop || _config.TodoWindowOpen)
             {
                 var starterWindow = new System.Windows.Forms.Timer { Interval = 800 };
                 starterWindow.Tick += (sender, args) =>
@@ -327,7 +327,14 @@ namespace DeskBoxToDo
             }
 
             _todoWindow = new TodoWindow(_config);
-            _todoWindow.FormClosed += (sender, args) => _todoWindow = null;
+            _todoWindow.FormClosed += (sender, args) =>
+            {
+                _todoWindow = null;
+                _config.TodoWindowOpen = false;
+                _config.Save();
+            };
+            _config.TodoWindowOpen = true;
+            _config.Save();
             _todoWindow.Show();
         }
 

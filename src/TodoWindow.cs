@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -648,11 +648,44 @@ namespace DeskBoxToDo
             return label;
         }
 
+        /// <summary>
+        /// Picks the largest tab font/padding whose total width still fits the
+        /// window, so the tab strip can never run outside a narrow window.
+        /// </summary>
+        private void MeasureTabs(out float fontSize, out int padding)
+        {
+            int available = Math.Max(120, ClientSize.Width - Ui.S(16));
+            float[] sizes = IsCompact ? new[] { 8.2f, 7.6f, 7.0f } : new[] { 9f, 8.4f, 7.8f, 7.2f };
+            int[] paddings = IsCompact ? new[] { Ui.S(16), Ui.S(12), Ui.S(8) } : new[] { Ui.S(22), Ui.S(16), Ui.S(12), Ui.S(8) };
+
+            for (int index = 0; index < sizes.Length; index++)
+            {
+                float size = sizes[index];
+                int pad = paddings[Math.Min(index, paddings.Length - 1)];
+                int total = 0;
+                foreach (var tab in Tabs)
+                {
+                    total += TextRenderer.MeasureText(TabLabel(tab.Filter) + " " + CountFor(tab.Filter), Ui.Font(size, FontStyle.Regular)).Width + pad;
+                }
+
+                if (total <= available || index == sizes.Length - 1)
+                {
+                    fontSize = size;
+                    padding = pad;
+                    return;
+                }
+            }
+
+            fontSize = 7.2f;
+            padding = Ui.S(8);
+        }
+
         private int TabWidth(TodoFilter filter)
         {
+            float fontSize;
+            int padding;
+            MeasureTabs(out fontSize, out padding);
             string label = TabLabel(filter) + " " + CountFor(filter);
-            float fontSize = IsCompact ? 8.2f : 9f;
-            int padding = IsCompact ? Ui.S(16) : Ui.S(22);
             return TextRenderer.MeasureText(label, Ui.Font(fontSize, FontStyle.Regular)).Width + padding;
         }
 
@@ -763,7 +796,10 @@ namespace DeskBoxToDo
 
         private void DrawTabs(Graphics g)
         {
-            int left = Ui.S(18);
+            float tabFont;
+            int tabPad;
+            MeasureTabs(out tabFont, out tabPad);
+            int left = Ui.S(8);
             for (int index = 0; index < Tabs.Length; index++)
             {
                 TodoFilter filter = Tabs[index].Filter;
@@ -774,7 +810,7 @@ namespace DeskBoxToDo
                 TextRenderer.DrawText(
                     g,
                     label,
-                    Ui.Font(IsCompact ? 8.4f : 9f, active ? FontStyle.Bold : FontStyle.Regular),
+                    Ui.Font(tabFont, active ? FontStyle.Bold : FontStyle.Regular),
                     new Rectangle(left, _tabsTop, width, Ui.S(28)),
                     active ? Ui.Accent : Ui.TextMuted,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
