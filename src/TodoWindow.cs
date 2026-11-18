@@ -188,7 +188,7 @@ namespace DeskBoxToDo
             _tabsTop = compact ? Ui.S(44) : Ui.S(58);
             _colorsTop = _tabsTop + (compact ? Ui.S(38) : Ui.S(46));
             _listTop = _colorsTop + (compact ? Ui.S(32) : Ui.S(40));
-            _listHeight = ClientSize.Height - _listTop - Ui.S(42);
+            _listHeight = ClientSize.Height - _listTop - (compact ? Ui.S(32) : Ui.S(42));
 
             _clearCompleted.SetBounds(width - pad - Ui.S(96), ClientSize.Height - Ui.S(36), Ui.S(96), Ui.S(26));
         }
@@ -926,7 +926,7 @@ namespace DeskBoxToDo
                 g,
                 item.Text,
                 Ui.Font(9.8f, FontStyle.Regular),
-                new RectangleF(textLeft, row.Top + Ui.S(9), textRight - textLeft, Ui.S(22)),
+                new RectangleF(textLeft, row.Top + row.Height * 0.10f, textRight - textLeft, row.Height * 0.44f),
                 item.IsCompleted ? Ui.TextMuted : Ui.Text,
                 StringAlignment.Near,
                 true);
@@ -936,7 +936,7 @@ namespace DeskBoxToDo
                 g,
                 secondary,
                 Ui.Font(8.6f, FontStyle.Regular),
-                new RectangleF(textLeft, row.Top + Ui.S(31), textRight - textLeft, Ui.S(18)),
+                new RectangleF(textLeft, row.Top + row.Height * 0.54f, textRight - textLeft, row.Height * 0.36f),
                 item.IsOverdue ? Color.FromArgb(236, 140, 130) : Ui.TextMuted,
                 StringAlignment.Near,
                 true);

@@ -12,7 +12,7 @@ namespace DeskBoxToDo.Setup
     internal static class InstallerProgram
     {
         public const string ProductName = "DeskBoxToDo";
-        public const string Version = "1.5.6";
+        public const string Version = "1.5.7";
         public const string Publisher = "DeskBoxToDo";
         public const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\DeskBoxToDo";
         public const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
