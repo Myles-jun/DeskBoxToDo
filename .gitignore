@@ -1,0 +1,39 @@
+﻿# 构建产物
+DeskBoxToDo.exe
+dist/
+*.res
+*.zip
+*.log
+
+# 本地截图/测试产物
+*.png
+!docs/*.png
+todo_window.png
+edit_form.png
+scroll_test.png
+scrollbar*.png
+typing_test.png
+toast.png
+star.png
+glass.png
+setup_ui.png
+picker.png
+detail.png
+resize_test.png
+time_picker.png
+preview.png
+date_dialog.png
+tab_test.png
+
+# 旧备份
+src/GlassUi.cs.broken
+emit.log
+trace.log
+writetest.txt
+wtest_exe.txt
+
+*_DeskBoxToDo.exe
+RC*
+src/*.broken
+docs/star.png
+docs/glass.png
