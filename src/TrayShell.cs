@@ -172,6 +172,12 @@ namespace DeskBoxToDo
                 SetAutoStart(true);
             }
 
+            if (string.IsNullOrWhiteSpace(_config.UpdateFeedUrl))
+            {
+                _config.UpdateFeedUrl = AppConfig.DefaultUpdateFeed;
+                _config.Save();
+            }
+
             ApplyGlassQuality();
             ApplyGlassOpacity();
             StartActivationListener();
@@ -507,6 +513,27 @@ namespace DeskBoxToDo
                 _config.Save();
                 if (info == null)
                 {
+                    return;
+                }
+
+                if (_config.UpdateAutoInstall)
+                {
+                    Log.Write("auto update: installing " + info.Version);
+                    string error;
+                    if (UpdateService.DownloadAndRun(info, out error))
+                    {
+                        _uiContext.Post(state =>
+                        {
+                            StopEverything();
+                            Application.Exit();
+                        }, null);
+                    }
+                    else
+                    {
+                        Log.Write("auto update failed: " + error);
+                        _uiContext.Post(state => PromptInstallUpdate(info, false), null);
+                    }
+
                     return;
                 }
 

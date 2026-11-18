@@ -42,8 +42,7 @@ namespace DeskBoxToDo
             LastError = "";
             if (string.IsNullOrWhiteSpace(feedUrl))
             {
-                LastError = "还没有配置更新地址";
-                return null;
+                feedUrl = AppConfig.DefaultUpdateFeed;
             }
 
             try

@@ -26,9 +26,10 @@ namespace DeskBoxToDo
         public string ReminderSound = "";
         public int GlassOpacityPercent;
         public int GlassQuality;
-        public string UpdateFeedUrl = "";
+        public const string DefaultUpdateFeed = "https://api.github.com/repos/Myles-jun/DeskBoxToDo/releases/latest";
+        public string UpdateFeedUrl = DefaultUpdateFeed;
         public int UpdateCheckMode = 2;
-        public bool UpdateAutoInstall;
+        public bool UpdateAutoInstall = true;
         public string LastUpdateCheckUtc = "";
         public bool ReminderSoundEnabled = true;
         public int OnboardingVersion;
@@ -93,6 +94,10 @@ namespace DeskBoxToDo
                 config.GlassOpacityPercent = ReadInt(raw, "glassOpacityPercent", config.GlassOpacityPercent);
                 config.GlassQuality = ReadInt(raw, "glassQuality", config.GlassQuality);
                 config.UpdateFeedUrl = ReadString(raw, "updateFeedUrl", config.UpdateFeedUrl);
+                if (string.IsNullOrWhiteSpace(config.UpdateFeedUrl))
+                {
+                    config.UpdateFeedUrl = DefaultUpdateFeed;
+                }
                 config.UpdateCheckMode = ReadInt(raw, "updateCheckMode", config.UpdateCheckMode);
                 config.UpdateAutoInstall = ReadBool(raw, "updateAutoInstall", config.UpdateAutoInstall);
                 config.LastUpdateCheckUtc = ReadString(raw, "lastUpdateCheckUtc", config.LastUpdateCheckUtc);
