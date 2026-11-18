@@ -178,9 +178,19 @@ namespace DeskBoxToDo
                 _config.Save();
             }
 
+            _config.Save();
+
             ApplyGlassQuality();
             ApplyGlassOpacity();
             StartActivationListener();
+            var updateTimer = new System.Windows.Forms.Timer { Interval = 10000 };
+            updateTimer.Tick += (sender, args) =>
+            {
+                updateTimer.Stop();
+                updateTimer.Dispose();
+                RunScheduledUpdateCheck();
+            };
+            updateTimer.Start();
             StartReminders();
             var firstScan = new System.Windows.Forms.Timer { Interval = 1500 };
             firstScan.Tick += (sender, args) =>
