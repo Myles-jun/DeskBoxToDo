@@ -1,4 +1,4 @@
-# Builds DeskBoxToDo.exe (with icon + version resource) and a portable zip.
+﻿# Builds DeskBoxToDo.exe (with icon + version resource) and a portable zip.
 # No .NET SDK needed: it targets the in-box .NET Framework 4.8 and compiles with
 # the Roslyn csc that ships with Visual Studio.
 
@@ -128,7 +128,7 @@ $info = Get-Item $out
 
 # Portable package.
 $distRoot = Join-Path $root 'dist'
-$packageName = 'DeskBoxToDo_1.5.0'
+$packageName = 'DeskBoxToDo_1.5.1'
 $packageDir = Join-Path $distRoot $packageName
 if (Test-Path $distRoot) { Remove-Item $distRoot -Recurse -Force }
 New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
@@ -174,7 +174,7 @@ if (Test-Path $installerSrc) {
     }
     finally { Pop-Location }
 
-    $setup = Join-Path $distRoot 'DeskBoxToDo_Setup_1.5.0.exe'
+    $setup = Join-Path $distRoot 'DeskBoxToDo_Setup_1.5.1.exe'
     $installerFiles = Get-ChildItem $installerSrc -Filter *.cs | ForEach-Object { $_.FullName }
     & $csc /nologo /target:winexe /platform:anycpu /optimize+ /utf8output `
         "/out:$setup" `

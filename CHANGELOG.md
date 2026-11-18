@@ -1,5 +1,10 @@
 ﻿# 更新日志
 
+## 1.5.1
+
+- 仓库发布自动化：推 `v*` tag 后 GitHub Actions 自动构建安装包并挂到 Release
+- 构建脚本查找编译器时支持 vswhere / 任意 VS 版本 / .NET SDK，CI 与本机都可用
+- 来源仓库：https://github.com/Myles-jun/DeskBoxToDo
 ## 1.5.0
 
 **自动更新**
