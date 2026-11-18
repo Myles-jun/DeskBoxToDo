@@ -15,10 +15,11 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
-          Get-Command csc.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-          where.exe rc.exe 2>$null
-          Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -ErrorAction SilentlyContinue |
-            Select-Object -First 3 Name
+          $csc = Get-ChildItem "C:\Program Files\Microsoft Visual Studio" -Recurse -Filter csc.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          Write-Host "csc: $($csc.FullName)"
+          $rc = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter rc.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          Write-Host "rc:  $($rc.FullName)"
+          exit 0
 
       - name: Build portable zip + installer
         shell: pwsh
