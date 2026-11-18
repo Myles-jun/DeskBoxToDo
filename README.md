@@ -1,4 +1,7 @@
-﻿# DeskBoxToDo · 选中即待办
+﻿# DeskBoxToDo
+
+> 选中一句话，直接变成待办。
+> 仓库：https://github.com/Myles-jun/DeskBoxToDo
 
 把「一句话」变成待办。选中文字按一下快捷键，确认窗里改两笔就完事。\r\n\r\n**两种用法**：自带待办（推荐，不依赖 DeskBox，加完立刻生效）或接入 [DeskBox](https://github.com/Tianyu199509/DeskBox) 的待办格子（和桌面小部件共享一份数据）。首次引导里选，之后随时可切换。
 
