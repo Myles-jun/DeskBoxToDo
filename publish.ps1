@@ -16,7 +16,7 @@ param(
     [switch]$DryRun
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
@@ -83,8 +83,8 @@ if ($dirty -gt 0) {
     $version = '1.5.0'
     $match = Select-String -Path .\src\AppInfo.cs -Pattern 'Version = "([^"]+)"'
     if ($match) { $version = $match.Matches[0].Groups[1].Value }
-    & $git add -A
-    & $git -c user.name="DeskBoxToDo" -c user.email="noreply@example.com" commit -q -m ("DeskBoxToDo " + $version + " 源码")
+    $null = & $git add -A 2>&1
+    $null = & $git -c user.name="DeskBoxToDo" -c user.email="noreply@example.com" commit -q -m ("DeskBoxToDo " + $version + " 源码") 2>&1
     Write-Host "已提交 $dirty 处改动（版本 $version）"
 }
 
@@ -104,13 +104,18 @@ if (-not $gh) {
     exit 1
 }
 
-# 登录状态
-& $gh auth status 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "还没登录 GitHub，正在启动授权流程（会打开浏览器）…" -ForegroundColor Cyan
+function Test-GhAuth {
+    & $gh auth status *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
+if (-not (Test-GhAuth)) {
+    Write-Host ""
+    Write-Host "还没登录 GitHub，正在启动授权流程。" -ForegroundColor Cyan
+    Write-Host "接下来：浏览器会打开 GitHub，复制页面上的 8 位代码粘贴回车，然后点 Authorize。" -ForegroundColor DarkGray
     & $gh auth login --hostname github.com --git-protocol https --web
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "登录失败或取消。" -ForegroundColor Yellow
+    if (-not (Test-GhAuth)) {
+        Write-Host "登录没成功。可以手动运行： gh auth login" -ForegroundColor Yellow
         exit 1
     }
 }
