@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -57,7 +57,7 @@ namespace DeskBoxToDo
 
             Text = "待办";
             Resizable = true;
-            MinimumSize = new Size(Ui.S(300), Ui.S(400));
+            MinimumSize = new Size(260, 320);
             ClientSize = ParseSize(_config.TodoWindowSize) ?? new Size(Ui.S(400), Ui.S(860));
             Font = Ui.Font(9f, FontStyle.Regular);
             DragZone = Ui.S(48);   // header only: tabs and dots must stay clickable
@@ -112,9 +112,10 @@ namespace DeskBoxToDo
                 int scale = Math.Max(1, Ui.Scale);
                 var wanted = new Size(width * scale, height * scale);
                 Rectangle working = Screen.FromPoint(Cursor.Position).WorkingArea;
+                // Absolute floors: DPI-scaled minimums made the window huge at 150%.
                 return new Size(
-                    Math.Max(Ui.S(300), Math.Min(wanted.Width, (int)(working.Width * 0.9))),
-                    Math.Max(Ui.S(400), Math.Min(wanted.Height, (int)(working.Height * 0.9))));
+                    Math.Max(260, Math.Min(wanted.Width, (int)(working.Width * 0.9))),
+                    Math.Max(320, Math.Min(wanted.Height, (int)(working.Height * 0.9))));
             }
 
             return null;
@@ -162,17 +163,31 @@ namespace DeskBoxToDo
             base.OnFormClosed(e);
         }
 
+        /// <summary>
+        /// Keeps the window usable on small/high-DPI screens: the minimum is
+        /// derived from the monitor, never from the DPI-scaled design size.
+        /// </summary>
+        private bool IsCompact
+        {
+            get { return ClientSize.Width < Ui.S(430) || ClientSize.Height < Ui.S(620); }
+        }
+
         private void LayoutOnce()
         {
-            int pad = Ui.S(18);
+            bool compact = IsCompact;
+            int pad = compact ? Ui.S(12) : Ui.S(18);
             int width = ClientSize.Width;
-            _title.SetBounds(pad + Ui.S(26), Ui.S(14), Ui.S(140), Ui.S(32));
-            _moreButton.SetBounds(width - pad - Ui.S(34), Ui.S(14), Ui.S(34), Ui.S(32));
-            _addButton.SetBounds(width - pad - Ui.S(34) - Ui.S(38), Ui.S(14), Ui.S(34), Ui.S(32));
+            int headerTop = compact ? Ui.S(8) : Ui.S(14);
+            int headerHeight = compact ? Ui.S(28) : Ui.S(32);
 
-            _tabsTop = Ui.S(58);
-            _colorsTop = _tabsTop + Ui.S(46);
-            _listTop = _colorsTop + Ui.S(40);
+            _rowHeight = compact ? Ui.S(50) : Ui.S(64);
+            _title.SetBounds(pad + Ui.S(24), headerTop, Ui.S(140), headerHeight);
+            _moreButton.SetBounds(width - pad - Ui.S(30), headerTop, Ui.S(30), headerHeight);
+            _addButton.SetBounds(width - pad - Ui.S(30) - Ui.S(34), headerTop, Ui.S(30), headerHeight);
+
+            _tabsTop = compact ? Ui.S(44) : Ui.S(58);
+            _colorsTop = _tabsTop + (compact ? Ui.S(38) : Ui.S(46));
+            _listTop = _colorsTop + (compact ? Ui.S(32) : Ui.S(40));
             _listHeight = ClientSize.Height - _listTop - Ui.S(42);
 
             _clearCompleted.SetBounds(width - pad - Ui.S(96), ClientSize.Height - Ui.S(36), Ui.S(96), Ui.S(26));
@@ -622,10 +637,23 @@ namespace DeskBoxToDo
             return -1;
         }
 
+        private string TabLabel(TodoFilter filter)
+        {
+            string label = Tabs.First(tab => tab.Filter == filter).Label;
+            if (IsCompact && label == "已完成")
+            {
+                label = "完成";
+            }
+
+            return label;
+        }
+
         private int TabWidth(TodoFilter filter)
         {
-            string label = Tabs.First(tab => tab.Filter == filter).Label + " " + CountFor(filter);
-            return TextRenderer.MeasureText(label, Ui.Font(9f, FontStyle.Regular)).Width + Ui.S(22);
+            string label = TabLabel(filter) + " " + CountFor(filter);
+            float fontSize = IsCompact ? 8.2f : 9f;
+            int padding = IsCompact ? Ui.S(16) : Ui.S(22);
+            return TextRenderer.MeasureText(label, Ui.Font(fontSize, FontStyle.Regular)).Width + padding;
         }
 
         private int ColorAt(int y, int x)
@@ -719,7 +747,9 @@ namespace DeskBoxToDo
 
         private void DrawHeaderIcon(Graphics g)
         {
-            var icon = new RectangleF(Ui.S(18), Ui.S(20), Ui.S(18), Ui.S(18));
+            float iconLeft = IsCompact ? Ui.S(12) : Ui.S(18);
+            float iconTop = IsCompact ? Ui.S(13) : Ui.S(20);
+            var icon = new RectangleF(iconLeft, iconTop, Ui.S(18), Ui.S(18));
             Ui.FillRounded(g, icon, Ui.S(4), Color.FromArgb(235, 86, 142, 247));
             using (var pen = new Pen(Color.White, 1.6f))
             {
@@ -737,14 +767,14 @@ namespace DeskBoxToDo
             for (int index = 0; index < Tabs.Length; index++)
             {
                 TodoFilter filter = Tabs[index].Filter;
-                string label = Tabs[index].Label + " " + CountFor(filter);
+                string label = TabLabel(filter) + " " + CountFor(filter);
                 int width = TabWidth(filter);
                 bool active = filter == _filter;
 
                 TextRenderer.DrawText(
                     g,
                     label,
-                    Ui.Font(9f, active ? FontStyle.Bold : FontStyle.Regular),
+                    Ui.Font(IsCompact ? 8.4f : 9f, active ? FontStyle.Bold : FontStyle.Regular),
                     new Rectangle(left, _tabsTop, width, Ui.S(28)),
                     active ? Ui.Accent : Ui.TextMuted,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
