@@ -1,4 +1,4 @@
-﻿# Builds DeskBoxToDo.exe (with icon + version resource) and a portable zip.
+# Builds DeskBoxToDo.exe (with icon + version resource) and a portable zip.
 # No .NET SDK needed: it targets the in-box .NET Framework 4.8 and compiles with
 # the Roslyn csc that ships with Visual Studio.
 
@@ -64,7 +64,12 @@ function Invoke-Csc([string[]]$extra, [switch]$NoManifest) {
     if (-not $NoManifest) { $arguments += "/win32manifest:$src\app.manifest" }
     $arguments += $extra + ($references | ForEach-Object { "/r:$_" }) + $sources
 
-    & $csc @arguments
+    if ($csc -like '*.dll') {
+        & dotnet exec $csc @arguments
+    }
+    else {
+        & $csc @arguments
+    }
     if ($LASTEXITCODE -ne 0) { throw "csc failed with exit code $LASTEXITCODE" }
 }
 
