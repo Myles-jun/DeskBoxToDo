@@ -15,10 +15,34 @@ function Find-Roslyn {
         'C:\Program Files\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe'
     )
     $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if (-not $found) {
-        throw 'Roslyn csc.exe not found. Install Visual Studio 2022 build tools or a .NET SDK.'
+    if ($found) { return $found }
+
+    # vswhere covers every edition/install path (CI runners included)
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (Test-Path $vswhere) {
+        $hit = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find '**\Roslyn\csc.exe' 2>$null |
+            Select-Object -First 1
+        if ($hit -and (Test-Path $hit.Trim())) { return $hit.Trim() }
     }
-    return $found
+
+    foreach ($vsRoot in @('C:\Program Files\Microsoft Visual Studio', 'C:\Program Files (x86)\Microsoft Visual Studio')) {
+        if (-not (Test-Path $vsRoot)) { continue }
+        $hit = Get-ChildItem $vsRoot -Recurse -Filter csc.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\Roslyn\\csc\.exe$' } |
+            Select-Object -First 1
+        if ($hit) { return $hit.FullName }
+    }
+
+    # A plain .NET SDK also ships Roslyn, as csc.dll (run through dotnet).
+    if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+        $sdkCsc = Get-ChildItem (Join-Path $env:ProgramFiles 'dotnet\sdk') -Recurse -Filter csc.dll -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\Roslyn\\bincore\\csc\.dll$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+        if ($sdkCsc) { return $sdkCsc.FullName }
+    }
+
+    throw 'Roslyn csc.exe not found. Install Visual Studio 2022 build tools or a .NET SDK.'
 }
 
 function Find-Rc {
