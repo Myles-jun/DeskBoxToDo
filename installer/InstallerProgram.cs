@@ -12,7 +12,7 @@ namespace DeskBoxToDo.Setup
     internal static class InstallerProgram
     {
         public const string ProductName = "DeskBoxToDo";
-        public const string Version = "1.5.3";
+        public const string Version = "1.5.4";
         public const string Publisher = "DeskBoxToDo";
         public const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\DeskBoxToDo";
         public const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -50,6 +50,7 @@ namespace DeskBoxToDo.Setup
             Application.SetCompatibleTextRenderingDefault(false);
 
             bool silent = false;
+            bool relaunch = false;
             bool uninstall = false;
             string target = null;
             string uninstallDir = null;
@@ -61,6 +62,11 @@ namespace DeskBoxToDo.Setup
                     value.Equals("--silent", StringComparison.OrdinalIgnoreCase))
                 {
                     silent = true;
+                }
+                else if (value.Equals("/R", StringComparison.OrdinalIgnoreCase) ||
+                         value.Equals("--relaunch", StringComparison.OrdinalIgnoreCase))
+                {
+                    relaunch = true;
                 }
                 else if (value.Equals("--uninstall", StringComparison.OrdinalIgnoreCase) ||
                          value.Equals("/uninstall", StringComparison.OrdinalIgnoreCase))
@@ -92,7 +98,7 @@ namespace DeskBoxToDo.Setup
                 if (silent)
                 {
                     Trace("silent install -> " + (target ?? DefaultInstallDir));
-                    int code = InstallLogic.Install(target ?? DefaultInstallDir, true, true, false, null);
+                    int code = InstallLogic.Install(target ?? DefaultInstallDir, true, true, relaunch, null);
                     Trace("silent install done code=" + code);
                     return code;
                 }

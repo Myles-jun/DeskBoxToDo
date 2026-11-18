@@ -211,7 +211,7 @@ namespace DeskBoxToDo
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = target,
-                    Arguments = "/S",
+                    Arguments = "/S /R",
                     UseShellExecute = true
                 });
                 return true;
