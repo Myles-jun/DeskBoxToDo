@@ -34,7 +34,11 @@ namespace DeskBoxToDo
 
                 if (cliInvocation)
                 {
+                    {
+                    var cliConfig = AppConfig.Load();
+                    Ui.RadiusOverride = cliConfig.CornerRadius;
                     return Cli.Run(args);
+                }
                 }
             }
 
@@ -61,7 +65,10 @@ namespace DeskBoxToDo
 
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                using (var shell = new TrayShell())
+                var startupConfig = AppConfig.Load();
+            Ui.RadiusOverride = startupConfig.CornerRadius;
+
+            using (var shell = new TrayShell())
                 {
                     Application.Run(shell);
                 }
