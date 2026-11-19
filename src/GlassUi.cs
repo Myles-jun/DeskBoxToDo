@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -208,7 +208,27 @@ namespace DeskBoxToDo
             var raw = new Bitmap(bounds.Width, bounds.Height);
             using (Graphics graphics = Graphics.FromImage(raw))
             {
-                graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size, CopyPixelOperation.SourceCopy);
+                // A window sitting on the screen edge (typical for the desktop
+                // widget) would capture black for the off-screen part, which then
+                // shows up as a black border. Clamp the copy and extend the edge.
+                Rectangle screen = SystemInformation.VirtualScreen;
+                Rectangle visible = Rectangle.Intersect(bounds, screen);
+                if (visible.Width > 0 && visible.Height > 0)
+                {
+                    using (var part = new Bitmap(visible.Width, visible.Height))
+                    {
+                        using (Graphics partGraphics = Graphics.FromImage(part))
+                        {
+                            partGraphics.CopyFromScreen(visible.Location, Point.Empty, visible.Size, CopyPixelOperation.SourceCopy);
+                        }
+
+                        graphics.DrawImage(
+                            part,
+                            new Rectangle(visible.X - bounds.X, visible.Y - bounds.Y, visible.Width, visible.Height));
+                    }
+
+                    ExtendEdges(raw, visible, bounds);
+                }
             }
 
             int down = 4;
@@ -234,6 +254,38 @@ namespace DeskBoxToDo
 
             small.Dispose();
             return blurred;
+        }
+
+        /// <summary>Fills the parts of <paramref name="target"/> outside the screen with edge pixels.</summary>
+        private static void ExtendEdges(Bitmap target, Rectangle visible, Rectangle bounds)
+        {
+            int left = visible.X - bounds.X;
+            int top = visible.Y - bounds.Y;
+            int right = left + visible.Width;
+            int bottom = top + visible.Height;
+
+            using (Graphics graphics = Graphics.FromImage(target))
+            {
+                if (left > 0)
+                {
+                    graphics.DrawImage(target, new Rectangle(0, top, left, visible.Height), new Rectangle(left, top, 1, visible.Height), GraphicsUnit.Pixel);
+                }
+
+                if (right < bounds.Width)
+                {
+                    graphics.DrawImage(target, new Rectangle(right, top, bounds.Width - right, visible.Height), new Rectangle(right - 1, top, 1, visible.Height), GraphicsUnit.Pixel);
+                }
+
+                if (top > 0)
+                {
+                    graphics.DrawImage(target, new Rectangle(0, 0, bounds.Width, top), new Rectangle(0, top, bounds.Width, 1), GraphicsUnit.Pixel);
+                }
+
+                if (bottom < bounds.Height)
+                {
+                    graphics.DrawImage(target, new Rectangle(0, bottom, bounds.Width, bounds.Height - bottom), new Rectangle(0, bottom - 1, bounds.Width, 1), GraphicsUnit.Pixel);
+                }
+            }
         }
 
         public static void BlurInPlace(Bitmap bitmap, int radius, int passes)
@@ -436,7 +488,8 @@ namespace DeskBoxToDo
             {
                 try
                 {
-                    _captureExcluded = SetWindowDisplayAffinity(Handle, 0x00000011);
+                    bool forceLive = Environment.GetEnvironmentVariable("DESKBOX_TODO_LIVE_CAPTURE") == "1";
+            _captureExcluded = forceLive || SetWindowDisplayAffinity(Handle, 0x00000011);
                 }
                 catch (Exception ex)
                 {
@@ -676,6 +729,42 @@ namespace DeskBoxToDo
             }
         }
 
+
+        /// <summary>Clips the window to the rounded shape (true transparent corners).</summary>
+        private void ApplyRegion()
+        {
+            try
+            {
+                if (!IsHandleCreated || Width <= 0 || Height <= 0)
+                {
+                    return;
+                }
+
+                using (GraphicsPath path = Ui.RoundedRect(new RectangleF(0, 0, Width, Height), CornerRadius))
+                {
+                    Region = new Region(path);
+                }
+
+                _regionSize = ClientSize;
+                _regionRadius = CornerRadius;
+            }
+            catch (Exception ex)
+            {
+                Log.Write("region failed: " + ex.Message);
+            }
+        }
+
+        private Size _regionSize;
+        private int _regionRadius = -1;
+
+        /// <summary>Keeps the window shape in sync with size and radius changes.</summary>
+        private void EnsureRegion()
+        {
+            if (_regionSize != ClientSize || _regionRadius != CornerRadius)
+            {
+                ApplyRegion();
+            }
+        }
 
         protected override void OnShown(EventArgs e)
         {
@@ -961,11 +1050,13 @@ namespace DeskBoxToDo
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
             graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
+            EnsureRegion();
+
             var full = new Rectangle(0, 0, Width, Height);
             if (!_radiusLogged)
             {
                 _radiusLogged = true;
-                Log.Write("glass paint: radius=" + CornerRadius + " override=" + Ui.RadiusOverride + " scale=" + Ui.Scale + " size=" + Width + "x" + Height);
+                Log.Write("glass paint: radius=" + CornerRadius + " override=" + Ui.RadiusOverride + " scale=" + Ui.Scale + " size=" + Width + "x" + Height + " region=" + (Region != null));
             }
 
             // Fill the whole window with the blurred backdrop first, so the
@@ -982,7 +1073,7 @@ namespace DeskBoxToDo
                 }
             }
 
-            using (GraphicsPath clip = Ui.RoundedRect(new RectangleF(0, 0, Width, Height), CornerRadius))
+            using (GraphicsPath clip = Ui.RoundedRect(new RectangleF(0, 0, Width, Height), 1f))
             {
                 graphics.SetClip(clip);
 
@@ -1021,9 +1112,12 @@ namespace DeskBoxToDo
                 graphics.ResetClip();
             }
 
-            using (GraphicsPath border = Ui.RoundedRect(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), CornerRadius))
-            using (var pen = new Pen(Color.FromArgb(40, 255, 255, 255), 1f))
+            using (GraphicsPath border = Ui.RoundedRect(new RectangleF(1f, 1f, Width - 2, Height - 2), CornerRadius))
+            using (var pen = new Pen(Color.FromArgb(120, 255, 255, 255), 1.4f))
+            using (GraphicsPath edgePath = Ui.RoundedRect(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), CornerRadius))
+            using (var edgePen = new Pen(Color.FromArgb(150, 255, 255, 255), 1f))
             {
+                graphics.DrawPath(edgePen, edgePath);
                 graphics.DrawPath(pen, border);
             }
         }
