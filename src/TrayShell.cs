@@ -182,6 +182,7 @@ namespace DeskBoxToDo
 
             ApplyGlassQuality();
             ApplyGlassOpacity();
+            Ui.RadiusOverride = _config.CornerRadius;
             StartActivationListener();
             var updateTimer = new System.Windows.Forms.Timer { Interval = 10000 };
             updateTimer.Tick += (sender, args) =>
@@ -244,6 +245,7 @@ namespace DeskBoxToDo
             menu.AddItem("提醒音乐…", () => ChooseReminderSound());
             menu.AddItem("毛玻璃透明度…", () => ChooseGlassOpacity());
             menu.AddItem("毛玻璃质感…", () => ChooseGlassQuality());
+            menu.AddItem("圆角大小…", () => ChooseCornerRadius());
             menu.AddSeparator();
             menu.AddItem("检查更新…", () => CheckForUpdatesManually());
             menu.AddItem("自动更新设置…", () => ChooseUpdateSettings());
@@ -570,6 +572,43 @@ namespace DeskBoxToDo
             }
             catch
             {
+            }
+        }
+
+        private void ChooseCornerRadius()
+        {
+            using (var picker = new PickerForm(_config, "圆角大小", "越小越方正，越大越圆润"))
+            {
+                picker.Add("default", "跟随设计（默认）", "", _config.CornerRadius < 0);
+                foreach (int radius in new[] { 0, 8, 14, 20, 28, 36 })
+                {
+                    int captured = radius;
+                    picker.Add(captured.ToString(), radius == 0 ? "直角（0）" : radius + " px", "", _config.CornerRadius == radius);
+                }
+
+                picker.Build();
+                if (picker.ShowDialog() != DialogResult.OK || picker.SelectedKey == null)
+                {
+                    return;
+                }
+
+                _config.CornerRadius = picker.SelectedKey == "default" ? -1 : int.Parse(picker.SelectedKey);
+                _config.Save();
+                ApplyCornerRadius();
+            }
+        }
+
+        private void ApplyCornerRadius()
+        {
+            Ui.RadiusOverride = _config.CornerRadius;
+            foreach (Form form in Application.OpenForms)
+            {
+                var glass = form as GlassForm;
+                if (glass != null)
+                {
+                    glass.ApplyRadiusFromSettings();
+                    glass.BackdropRefresh();
+                }
             }
         }
 

@@ -21,6 +21,9 @@ namespace DeskBoxToDo
         public static int GlassBlurRadius = 7;
         public static int GlassBlurPasses = 3;
 
+        /// <summary>User-chosen corner radius in logical px; -1 = per-form default.</summary>
+        public static int RadiusOverride = -1;
+
         public static Color Text
         {
             get { return Color.FromArgb(242, 244, 248); }
@@ -328,6 +331,7 @@ namespace DeskBoxToDo
         private const int DwmwaWindowCornerPreference = 33;
         private const int DwmwaUseImmersiveDarkMode = 20;
         private const int DwmwaBorderColor = 34;
+        private const int DwmwaVisibleFrameBorderThickness = 37;
 
         /// <summary>Menus turn this off so their top items stay clickable.</summary>
         public bool EnableWindowDrag { get; set; } = true;
@@ -399,6 +403,11 @@ namespace DeskBoxToDo
                 // 去掉系统绘制的边框颜色，避免四边深浅不一
                 int noBorder = unchecked((int)0xFFFFFFFE);
                 DwmSetWindowAttribute(Handle, DwmwaBorderColor, ref noBorder, sizeof(int));
+
+                // Resizable borderless windows still get a 1px system frame on the
+                // right/bottom; make it zero so no dark hairline shows.
+                int frameThickness = 0;
+                DwmSetWindowAttribute(Handle, DwmwaVisibleFrameBorderThickness, ref frameThickness, sizeof(int));
                 int dark = 1;
                 DwmSetWindowAttribute(Handle, DwmwaUseImmersiveDarkMode, ref dark, sizeof(int));
             }
@@ -410,7 +419,9 @@ namespace DeskBoxToDo
             // DWM rounds the window itself on Windows 11; clipping with a
             // Region on top of that produces jagged corners and a border that
             // does not follow the real edge, so only fall back when DWM said no.
-            CornerRadius = Math.Max(4, (int)Math.Round(8.0 * Ui.Scale));
+            CornerRadius = Ui.RadiusOverride >= 0
+                ? Math.Max(2, Ui.S(Ui.RadiusOverride))
+                : Math.Max(4, (int)Math.Round(8.0 * Ui.Scale));
             if (roundResult != 0)
             {
                 Log.Write("dwm rounding unavailable (" + roundResult + "), using region");
@@ -524,32 +535,126 @@ namespace DeskBoxToDo
             }
         }
 
-        private const int WmNchittest = 0x0084;
+        private bool _resizing;
+        private int _resizeEdge;
+        private Point _resizeStartCursor;
+        private Rectangle _resizeStartBounds;
+
+        private int EdgeAt(Point point)
+        {
+            int border = Ui.S(6);
+            int edge = 0;
+            if (point.X <= border) { edge |= 1; }
+            if (point.X >= ClientSize.Width - border) { edge |= 2; }
+            if (point.Y <= border) { edge |= 4; }
+            if (point.Y >= ClientSize.Height - border) { edge |= 8; }
+            return edge;
+        }
+
+        private static Cursor CursorForEdge(int edge)
+        {
+            switch (edge)
+            {
+                case 1:
+                case 2:
+                    return Cursors.SizeWE;
+                case 4:
+                case 8:
+                    return Cursors.SizeNS;
+                case 5:
+                case 10:
+                    return Cursors.SizeNWSE;
+                case 6:
+                case 9:
+                    return Cursors.SizeNESW;
+                default:
+                    return Cursors.Default;
+            }
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            if (Resizable && e.Button == MouseButtons.Left)
+            {
+                int edge = EdgeAt(e.Location);
+                if (edge != 0)
+                {
+                    _resizing = true;
+                    _resizeEdge = edge;
+                    _resizeStartCursor = Cursor.Position;
+                    _resizeStartBounds = Bounds;
+                    Capture = true;
+                    return;
+                }
+            }
+
+            base.OnMouseDown(e);
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            if (_resizing)
+            {
+                Point delta = new Point(Cursor.Position.X - _resizeStartCursor.X, Cursor.Position.Y - _resizeStartCursor.Y);
+                Rectangle bounds = _resizeStartBounds;
+                int minWidth = Math.Max(180, MinimumSize.Width);
+                int minHeight = Math.Max(200, MinimumSize.Height);
+
+                if ((_resizeEdge & 1) != 0)
+                {
+                    int newLeft = Math.Min(bounds.Left + delta.X, bounds.Right - minWidth);
+                    bounds.Width = bounds.Right - newLeft;
+                    bounds.X = newLeft;
+                }
+                else if ((_resizeEdge & 2) != 0)
+                {
+                    bounds.Width = Math.Max(minWidth, bounds.Width + delta.X);
+                }
+
+                if ((_resizeEdge & 4) != 0)
+                {
+                    int newTop = Math.Min(bounds.Top + delta.Y, bounds.Bottom - minHeight);
+                    bounds.Height = bounds.Bottom - newTop;
+                    bounds.Y = newTop;
+                }
+                else if ((_resizeEdge & 8) != 0)
+                {
+                    bounds.Height = Math.Max(minHeight, bounds.Height + delta.Y);
+                }
+
+                Bounds = bounds;
+                return;
+            }
+
+            if (Resizable && e.Button == MouseButtons.None)
+            {
+                Cursor = CursorForEdge(EdgeAt(e.Location));
+            }
+
+            base.OnMouseMove(e);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            if (_resizing)
+            {
+                _resizing = false;
+                Capture = false;
+                OnUserResized();
+                return;
+            }
+
+            base.OnMouseUp(e);
+        }
+
+        /// <summary>Hook for windows that persist their size.</summary>
+        protected virtual void OnUserResized()
+        {
+        }
 
         protected override void WndProc(ref Message m)
         {
             base.WndProc(ref m);
-
-            if (m.Msg == WmNchittest && Resizable && WindowState == FormWindowState.Normal && (int)m.Result == 1)
-            {
-                int sx = (short)((long)m.LParam & 0xFFFF);
-                int sy = (short)(((long)m.LParam >> 16) & 0xFFFF);
-                Point client = PointToClient(new Point(sx, sy));
-                int border = Ui.S(7);
-                bool left = client.X <= border;
-                bool right = client.X >= ClientSize.Width - border;
-                bool top = client.Y <= border;
-                bool bottom = client.Y >= ClientSize.Height - border;
-
-                if (left && top) { m.Result = (IntPtr)13; }
-                else if (right && top) { m.Result = (IntPtr)14; }
-                else if (left && bottom) { m.Result = (IntPtr)16; }
-                else if (right && bottom) { m.Result = (IntPtr)17; }
-                else if (left) { m.Result = (IntPtr)10; }
-                else if (right) { m.Result = (IntPtr)11; }
-                else if (top) { m.Result = (IntPtr)12; }
-                else if (bottom) { m.Result = (IntPtr)15; }
-            }
 
             if (_captureExcluded)
             {
@@ -846,6 +951,18 @@ namespace DeskBoxToDo
             PrepareBackdrop();
         }
 
+        /// <summary>Re-applies the user-chosen radius to an already open window.</summary>
+        public void ApplyRadiusFromSettings()
+        {
+            if (Ui.RadiusOverride < 0)
+            {
+                return;
+            }
+
+            CornerRadius = Math.Max(2, Ui.S(Ui.RadiusOverride));
+            Invalidate(true);
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             // Fully custom painted below.
@@ -961,14 +1078,6 @@ namespace DeskBoxToDo
             SendMessage(Handle, WmNclbuttondown, Htcaption, 0);
         }
 
-        protected override void OnMouseDown(MouseEventArgs e)
-        {
-            base.OnMouseDown(e);
-            if (EnableWindowDrag && e.Button == MouseButtons.Left && e.Y <= DragZone)
-            {
-                BeginCaptionDrag();
-            }
-        }
 
         protected override void Dispose(bool disposing)
         {
