@@ -7,7 +7,7 @@ namespace DeskBoxToDo
     {
         public const string ProductName = "DeskBoxToDo";
         public const string DisplayName = "选中即待办";
-        public const string Version = "1.5.9";
+        public const string Version = "1.6.0";
         public const string Tagline = "选中一句话，直接变成待办";
         public const string DeskBoxDownloadUrl = "https://github.com/Tianyu199509/DeskBox/releases/latest";
 

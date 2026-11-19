@@ -425,7 +425,6 @@ namespace DeskBoxToDo
             if (roundResult != 0)
             {
                 Log.Write("dwm rounding unavailable (" + roundResult + "), using region");
-                ApplyRegion();
             }
 
             // WDA_EXCLUDEFROMCAPTURE: screen grabs (including our own
@@ -677,20 +676,6 @@ namespace DeskBoxToDo
             }
         }
 
-        private void ApplyRegion()
-        {
-            try
-            {
-                using (GraphicsPath path = Ui.RoundedRect(new RectangleF(0, 0, Width, Height), CornerRadius))
-                {
-                    Region = new Region(path);
-                }
-            }
-            catch
-            {
-                // Ignore; square corners are still usable.
-            }
-        }
 
         protected override void OnShown(EventArgs e)
         {
@@ -963,6 +948,8 @@ namespace DeskBoxToDo
             Invalidate(true);
         }
 
+        private bool _radiusLogged;
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             // Fully custom painted below.
@@ -975,6 +962,11 @@ namespace DeskBoxToDo
             graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
             var full = new Rectangle(0, 0, Width, Height);
+            if (!_radiusLogged)
+            {
+                _radiusLogged = true;
+                Log.Write("glass paint: radius=" + CornerRadius + " override=" + Ui.RadiusOverride + " scale=" + Ui.Scale + " size=" + Width + "x" + Height);
+            }
 
             // Fill the whole window with the blurred backdrop first, so the
             // rounded corners show the desktop instead of the dark form colour.
