@@ -397,7 +397,7 @@ namespace DeskBoxToDo
             int roundResult = -1;
             try
             {
-                int round = 2; // DWMWCP_ROUND
+                int round = 1; // DWMWCP_DONOTROUND: we draw the shape ourselves
                 roundResult = DwmSetWindowAttribute(Handle, DwmwaWindowCornerPreference, ref round, sizeof(int));
 
                 // 去掉系统绘制的边框颜色，避免四边深浅不一
@@ -975,6 +975,20 @@ namespace DeskBoxToDo
             graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
             var full = new Rectangle(0, 0, Width, Height);
+
+            // Fill the whole window with the blurred backdrop first, so the
+            // rounded corners show the desktop instead of the dark form colour.
+            if (_backdrop != null)
+            {
+                graphics.DrawImage(_backdrop, full);
+            }
+            else
+            {
+                using (var cornerBrush = new SolidBrush(Color.FromArgb(24, 26, 32)))
+                {
+                    graphics.FillRectangle(cornerBrush, full);
+                }
+            }
 
             using (GraphicsPath clip = Ui.RoundedRect(new RectangleF(0, 0, Width, Height), CornerRadius))
             {
