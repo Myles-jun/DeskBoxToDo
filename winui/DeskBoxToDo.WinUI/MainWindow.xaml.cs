@@ -62,6 +62,7 @@ namespace DeskBoxToDo.WinUI
                 : "独立数据（%LOCALAPPDATA%\\DeskBoxToDo\\todo.json）";
 
             Reload();
+
         }
 
         private void ConfigureWindow()
@@ -90,12 +91,13 @@ namespace DeskBoxToDo.WinUI
             appWindow.Resize(new SizeInt32(420, 560));
             appWindow.Move(new PointInt32(980, 380));
 
-            InstallCursorHook(hwnd);
             ApplyClassBackground(hwnd);
 
             int round = 2;
             DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
             // 让系统不要画边框色（0xFFFFFFFE = DWMWA_COLOR_NONE），避免四周黑边
+            Activated += (sender, args) => InstallCursorHookOnce();
+
             int borderColor = unchecked((int)0xFFFFFFFE);
             DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
             int frameThickness = 0;
@@ -225,8 +227,17 @@ namespace DeskBoxToDo.WinUI
                 }
 
                 float t = Math.Clamp(_settings.Brightness / 100f, 0f, 1f);
-                byte alpha = opaque ? (byte)255 : (byte)Math.Clamp(24 + t * 190, 0, 255);
-                TintLayer.Fill = new SolidColorBrush(Color.FromArgb(alpha, 20, 24, 34));
+                if (opaque)
+                {
+                    // Solid during the move/resize loop: the system backdrop is
+                    // suspended there, so a transparent layer would show black.
+                    TintLayer.Fill = new SolidColorBrush(Color.FromArgb(255, 26, 30, 40));
+                }
+                else
+                {
+                    byte alpha = (byte)Math.Clamp(24 + t * 170, 0, 255);
+                    TintLayer.Fill = new SolidColorBrush(Color.FromArgb(alpha, 20, 24, 34));
+                }
             }
             catch
             {
@@ -503,7 +514,7 @@ namespace DeskBoxToDo.WinUI
             float t = Math.Clamp(_settings.Brightness / 100f, 0f, 1f);
             if (TintLayer != null)
             {
-                byte alpha = (byte)Math.Clamp(24 + t * 190, 0, 255);
+                byte alpha = (byte)Math.Clamp(24 + t * 170, 0, 255);
                 TintLayer.Fill = new SolidColorBrush(Color.FromArgb(alpha, 20, 24, 34));
             }
 
@@ -688,6 +699,7 @@ namespace DeskBoxToDo.WinUI
             }
 
             Reload();
+
         }
 
         private void OnItemClick(object sender, ItemClickEventArgs args)
@@ -809,6 +821,7 @@ namespace DeskBoxToDo.WinUI
 
             OnCloseDetail(sender, args);
             Reload();
+
         }
 
         private void OnSaveDetail(object sender, RoutedEventArgs args)
@@ -844,6 +857,7 @@ namespace DeskBoxToDo.WinUI
 
             OnCloseDetail(sender, args);
             Reload();
+
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -855,6 +869,20 @@ namespace DeskBoxToDo.WinUI
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
 
+        private bool _hookInstalled;
+
+        private void InstallCursorHookOnce()
+        {
+            if (_hookInstalled)
+            {
+                return;
+            }
+
+            _hookInstalled = true;
+            IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            InstallCursorHook(hwnd);
+            Console.WriteLine("wndproc hook installed");
+        }
         [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
     }
