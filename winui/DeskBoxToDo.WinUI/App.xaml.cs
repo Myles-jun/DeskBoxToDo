@@ -10,6 +10,7 @@ namespace DeskBoxToDo.WinUI
         public App()
         {
             InitializeComponent();
+            RequestedTheme = ApplicationTheme.Dark;
             UnhandledException += (sender, args) =>
             {
                 Console.WriteLine("UNHANDLED: " + args.Exception);

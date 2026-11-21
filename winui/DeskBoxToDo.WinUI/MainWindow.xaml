@@ -5,7 +5,9 @@
     xmlns:local="using:DeskBoxToDo.WinUI"
     Title="DeskBoxToDo">
 
-    <Grid>
+    <Grid RequestedTheme="Dark">
+        <Rectangle x:Name="TintLayer" IsHitTestVisible="False" />
+
         <!-- 列表页 -->
         <Grid x:Name="ListPage">
             <Grid.RowDefinitions>
@@ -223,7 +225,6 @@
             </Grid>
         </Grid>
 
-        <Border x:Name="TopEdgeMask" Height="2" VerticalAlignment="Top" Background="#2E1A1E26" IsHitTestVisible="False" />
         <!-- 自实现缩放用的四条热区（窗口右侧/底部/左下等边缘） -->
         <Border x:Name="ResizeRight" Width="6" HorizontalAlignment="Right" Background="Transparent"
                 PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased"
@@ -237,5 +238,7 @@
         <Border x:Name="ResizeTop" Height="6" VerticalAlignment="Top" Background="Transparent"
                 PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased"
                 PointerEntered="OnResizeEntered" />
+
+        <Border IsHitTestVisible="False" BorderBrush="#3AFFFFFF" BorderThickness="1" CornerRadius="9" />
     </Grid>
 </Window>

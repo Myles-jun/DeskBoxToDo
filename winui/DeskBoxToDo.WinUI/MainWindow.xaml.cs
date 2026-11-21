@@ -53,7 +53,6 @@ namespace DeskBoxToDo.WinUI
                 : "独立数据（%LOCALAPPDATA%\\DeskBoxToDo\\todo.json）";
 
             Reload();
-            TopEdgeMask.Visibility = Visibility.Visible;
         }
 
         private void ConfigureWindow()
@@ -85,12 +84,16 @@ namespace DeskBoxToDo.WinUI
 
             int round = 2;
             DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
-            // 1px 系统边框染成和玻璃同色，避免顶部/四周出现白线
-            int borderColor = unchecked((int)0x00281E1A);
+            // 让系统不要画边框色（0xFFFFFFFE = DWMWA_COLOR_NONE），避免四周黑边
+            int borderColor = unchecked((int)0xFFFFFFFE);
             DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
+            int frameThickness = 0;
+            DwmSetWindowAttribute(hwnd, 37, ref frameThickness, sizeof(int));
         }
 
         private const int GwlStyle = -16;
+        private const int GwlExStyle = -20;
+        private const int WsExToolWindow = 0x00000080;
         private const int WsCaption = 0x00C00000;
         private const int WsThickFrame = 0x00040000;
         private const int WsSysMenu = 0x00080000;
@@ -105,6 +108,11 @@ namespace DeskBoxToDo.WinUI
             style &= ~(WsCaption | WsThickFrame | WsSysMenu | WsMinimizeBox | WsMaximizeBox);
             style |= WsPopup;
             SetWindowLong(hwnd, GwlStyle, style);
+
+            // WS_EX_TOOLWINDOW：系统不再给窗口画投影（四周那圈黑边就是它）
+            int exStyle = GetWindowLong(hwnd, GwlExStyle);
+            exStyle |= Environment.GetEnvironmentVariable("DBT_NO_TOOLWINDOW") == "1" ? 0 : WsExToolWindow;
+            SetWindowLong(hwnd, GwlExStyle, exStyle);
             SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027); // NOMOVE|NOSIZE|NOZORDER|FRAMECHANGED
         }
 
@@ -166,7 +174,17 @@ namespace DeskBoxToDo.WinUI
 
         private bool _dragging;
         private PointInt32 _dragStartWindow;
-        private Windows.Foundation.Point _dragStartCursor;
+        private POINT _dragStartScreen;
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT point);
 
         private void HookDrag()
         {
@@ -184,7 +202,7 @@ namespace DeskBoxToDo.WinUI
                 }
 
                 _dragging = true;
-                _dragStartCursor = point.Position;
+                GetCursorPos(out _dragStartScreen);
                 _dragStartWindow = AppWindow.Position;
                 HeaderBar.CapturePointer(args.Pointer);
             };
@@ -196,10 +214,10 @@ namespace DeskBoxToDo.WinUI
                     return;
                 }
 
-                var point = args.GetCurrentPoint(HeaderBar);
+                GetCursorPos(out POINT now);
                 AppWindow.Move(new PointInt32(
-                    _dragStartWindow.X + (int)(point.Position.X - _dragStartCursor.X),
-                    _dragStartWindow.Y + (int)(point.Position.Y - _dragStartCursor.Y)));
+                    _dragStartWindow.X + (now.X - _dragStartScreen.X),
+                    _dragStartWindow.Y + (now.Y - _dragStartScreen.Y)));
             };
 
             HeaderBar.PointerReleased += (sender, args) =>
@@ -239,15 +257,19 @@ namespace DeskBoxToDo.WinUI
         /// <summary>Brightness 0 = clear/light glass, 100 = dark glass.</summary>
         private void ApplyBrightness()
         {
-            if (_acrylic == null)
+            float t = Math.Clamp(_settings.Brightness / 100f, 0f, 1f);
+            if (TintLayer != null)
             {
-                return;
+                byte alpha = (byte)Math.Clamp(24 + t * 190, 0, 255);
+                TintLayer.Fill = new SolidColorBrush(Color.FromArgb(alpha, 20, 24, 34));
             }
 
-            float t = Math.Clamp(_settings.Brightness / 100f, 0f, 1f);
-            _acrylic.TintColor = Color.FromArgb(255, 26, 30, 40);
-            _acrylic.TintOpacity = 0.06f + t * 0.62f;
-            _acrylic.LuminosityOpacity = 0.20f + t * 0.60f;
+            if (_acrylic != null)
+            {
+                _acrylic.TintOpacity = 0.06f + t * 0.62f;
+                _acrylic.LuminosityOpacity = 0.20f + t * 0.60f;
+            }
+
             BrightnessLabel.Text = "当前 " + _settings.Brightness + "（0 最清透 / 100 最厚重）";
         }
 
