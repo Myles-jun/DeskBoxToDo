@@ -41,10 +41,9 @@ namespace DeskBoxToDo.WinUI
         public MainWindow()
         {
             InitializeComponent();
-            ExtendsContentIntoTitleBar = true;
-            SetTitleBar(HeaderBar);
             ConfigureWindow();
             ApplyAcrylic();
+            HookDrag();
             BuildDetailPickers();
 
             TodoList.ItemsSource = _visible;
@@ -73,10 +72,12 @@ namespace DeskBoxToDo.WinUI
 
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
+                presenter.SetBorderAndTitleBar(false, false);
                 presenter.IsResizable = true;
                 presenter.IsMaximizable = false;
-                presenter.IsMinimizable = true;
             }
+
+            ApplyFrameless(hwnd);
 
             appWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Collapsed;
             appWindow.TitleBar.BackgroundColor = Colors.Transparent;
@@ -177,6 +178,7 @@ namespace DeskBoxToDo.WinUI
                     if (shape != 0)
                     {
                         SetCursor(LoadCursor(IntPtr.Zero, (IntPtr)shape));
+                        Console.WriteLine("setcursor hook: " + point.X + "," + point.Y + " shape=" + shape);
                         return (IntPtr)1;
                     }
                 }
@@ -229,14 +231,28 @@ namespace DeskBoxToDo.WinUI
                 // The layer is always ~92% opaque: during the system move loop the
                 // backdrop is suspended, and anything more transparent turns black.
                 float t = Math.Clamp(_settings.Brightness / 100f, 0f, 1f);
-                byte level = (byte)Math.Clamp(34 - t * 16, 14, 52);
-                TintLayer.Fill = new SolidColorBrush(Color.FromArgb(235, level, (byte)(level + 4), (byte)(level + 12)));
+                byte alpha = (byte)Math.Clamp(30 + t * 150, 0, 255);
+                TintLayer.Fill = new SolidColorBrush(Color.FromArgb(alpha, 20, 24, 34));
             }
             catch
             {
             }
         }
 
+        /// <summary>Borderless, no system frame: keeps the backdrop composed while moving.</summary>
+        private void ApplyFrameless(IntPtr hwnd)
+        {
+            int style = GetWindowLong(hwnd, -16);
+            style &= ~(0x00C00000 | 0x00040000 | 0x00080000 | 0x00020000 | 0x00010000);
+            SetWindowLong(hwnd, -16, style);
+
+            int ex = GetWindowLong(hwnd, -20);
+            ex |= 0x00000080; // WS_EX_TOOLWINDOW: no drop shadow
+            SetWindowLong(hwnd, -20, ex);
+
+            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027);
+            Console.WriteLine("frameless applied");
+        }
         private const int GwlStyle = -16;
         private const int GwlExStyle = -20;
         private const int WsExToolWindow = 0x00000080;
@@ -315,9 +331,62 @@ namespace DeskBoxToDo.WinUI
             SetCursor(LoadCursor(IntPtr.Zero, (IntPtr)32512)); // IDC_ARROW
         }
 
+        /// <summary>Directly sets the native resize cursor for a hotzone (bit mask 1/2/4/8).</summary>
+        private Microsoft.UI.Xaml.DispatcherTimer _cursorTimer;
+        private int _cursorEdge;
+
+        /// <summary>WinUI keeps resetting the cursor, so while the pointer sits on an
+        /// edge strip we re-apply the native resize cursor a few dozen times a second.</summary>
+        private void StartEdgeCursor(int edge)
+        {
+            _cursorEdge = edge;
+            SetEdgeCursor(edge);
+            if (_cursorTimer == null)
+            {
+                _cursorTimer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
+                _cursorTimer.Tick += (sender, args) => SetEdgeCursor(_cursorEdge);
+            }
+
+            _cursorTimer.Start();
+        }
+
+        private void StopEdgeCursor()
+        {
+            if (_cursorTimer != null)
+            {
+                _cursorTimer.Stop();
+            }
+        }
+        private void SetEdgeCursor(int edge)
+        {
+            int shape;
+            bool horizontal = (edge & 3) != 0;
+            bool vertical = (edge & 12) != 0;
+            if (horizontal && vertical)
+            {
+                shape = (edge & 1) != 0 && (edge & 4) != 0 || (edge & 2) != 0 && (edge & 8) != 0
+                    ? IdcSizeNwse
+                    : IdcSizeNesw;
+            }
+            else if (horizontal)
+            {
+                shape = IdcSizeWe;
+            }
+            else
+            {
+                shape = IdcSizeNs;
+            }
+
+            SetCursor(LoadCursor(IntPtr.Zero, (IntPtr)shape));
+        }
         private void OnResizeEntered(object sender, PointerRoutedEventArgs args)
         {
-            ApplyEdgeCursor(args);
+            var border0 = sender as FrameworkElement;
+            if (border0 != null && int.TryParse(border0.Tag?.ToString(), out int edge0))
+            {
+                SetEdgeCursor(edge0);
+            }
+
             var border = sender as FrameworkElement;
             if (border == null)
             {
@@ -335,7 +404,7 @@ namespace DeskBoxToDo.WinUI
             }
 
             _resizing = true;
-            _resizeEdge = 2;
+            _resizeEdge = int.TryParse((sender as FrameworkElement)?.Tag?.ToString(), out int edgeBits) ? edgeBits : 2;
             _resizeStartSize = new PointInt32(AppWindow.Size.Width, AppWindow.Size.Height);
             _resizeStartPoint = args.GetCurrentPoint(null).Position;
             border.CapturePointer(args.Pointer);
@@ -343,7 +412,10 @@ namespace DeskBoxToDo.WinUI
 
         private void OnResizeMoved(object sender, PointerRoutedEventArgs args)
         {
-            ApplyEdgeCursor(args);
+            if (sender is Border zone2 && int.TryParse(zone2.Tag?.ToString(), out int zoneEdge))
+            {
+                StartEdgeCursor(zoneEdge);
+            }
 
             if (!_resizing)
             {
@@ -507,8 +579,8 @@ namespace DeskBoxToDo.WinUI
             float t = Math.Clamp(_settings.Brightness / 100f, 0f, 1f);
             if (TintLayer != null)
             {
-                byte level = (byte)Math.Clamp(34 - t * 16, 14, 52);
-                TintLayer.Fill = new SolidColorBrush(Color.FromArgb(235, level, (byte)(level + 4), (byte)(level + 12)));
+                byte alpha = (byte)Math.Clamp(30 + t * 150, 0, 255);
+                TintLayer.Fill = new SolidColorBrush(Color.FromArgb(alpha, 20, 24, 34));
             }
 
             if (_mica != null)

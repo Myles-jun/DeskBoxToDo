@@ -4,37 +4,38 @@ using Microsoft.UI.Xaml.Controls;
 namespace DeskBoxToDo.WinUI
 {
     /// <summary>
-    /// Transparent strip along one window edge. UIElement.ProtectedCursor is
-    /// protected, so a small subclass is the only way to get the native resize
-    /// cursors in WinUI 3 (Border is sealed, ContentPresenter is not).
+    /// Transparent edge strip with the native resize cursor. UIElement.ProtectedCursor
+    /// is protected, so a small subclass is the only way WinUI lets us set it.
+    /// EdgeBits: 1=left 2=right 4=top 8=bottom (combined for corners).
     /// </summary>
     public sealed class ResizeEdge : ContentPresenter
     {
-        private string _direction = "h";
+        private int _edgeBits = 2;
 
-        public string Direction
+        public int EdgeBits
         {
-            get => _direction;
+            get => _edgeBits;
             set
             {
-                _direction = value ?? "h";
-                ProtectedCursor = InputSystemCursor.Create(ShapeFor(_direction));
+                _edgeBits = value;
+                ProtectedCursor = InputSystemCursor.Create(ShapeFor(value));
             }
         }
 
-        private static InputSystemCursorShape ShapeFor(string direction)
+        private static InputSystemCursorShape ShapeFor(int bits)
         {
-            switch (direction)
+            bool horizontal = (bits & 3) != 0;
+            bool vertical = (bits & 12) != 0;
+            if (horizontal && vertical)
             {
-                case "v":
-                    return InputSystemCursorShape.SizeNorthSouth;
-                case "nwse":
-                    return InputSystemCursorShape.SizeNorthwestSoutheast;
-                case "nesw":
-                    return InputSystemCursorShape.SizeNortheastSouthwest;
-                default:
-                    return InputSystemCursorShape.SizeWestEast;
+                bool sameDiagonal = ((bits & 1) != 0 && (bits & 4) != 0) ||
+                                    ((bits & 2) != 0 && (bits & 8) != 0);
+                return sameDiagonal
+                    ? InputSystemCursorShape.SizeNorthwestSoutheast
+                    : InputSystemCursorShape.SizeNortheastSouthwest;
             }
+
+            return horizontal ? InputSystemCursorShape.SizeWestEast : InputSystemCursorShape.SizeNorthSouth;
         }
     }
 }

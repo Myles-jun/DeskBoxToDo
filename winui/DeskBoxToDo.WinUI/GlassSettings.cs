@@ -10,7 +10,7 @@ namespace DeskBoxToDo.WinUI
         public int Brightness { get; set; } = 42;
 
         /// <summary>mica = 拖动最稳；acrylic = 更通透但拖动时会闪。</summary>
-        public string Material { get; set; } = "mica";
+        public string Material { get; set; } = "acrylic";
 
         private static string FilePath =>
             Path.Combine(TodoStore.DataRoot, "winui-settings.json");
