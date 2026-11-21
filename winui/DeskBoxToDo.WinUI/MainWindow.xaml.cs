@@ -98,7 +98,13 @@ namespace DeskBoxToDo.WinUI
             int round = 2;
             DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
             // 让系统不要画边框色（0xFFFFFFFE = DWMWA_COLOR_NONE），避免四周黑边
-            Activated += (sender, args) => InstallCursorHookOnce();
+            var boot = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            boot.Tick += (sender, args) =>
+            {
+                boot.Stop();
+                InstallCursorHookOnce();
+            };
+            boot.Start();
 
             int borderColor = unchecked((int)0xFFFFFFFE);
             DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
@@ -142,6 +148,12 @@ namespace DeskBoxToDo.WinUI
         {
             _wndProc = (h, message, wParam, lParam) =>
             {
+                if (message == WmHotkey)
+                {
+                    FocusQuickAdd();
+                    return IntPtr.Zero;
+                }
+
                 if (message == 0x0231) // WM_ENTERSIZEMOVE
                 {
                     SetTintOpaque(true);
@@ -431,7 +443,8 @@ namespace DeskBoxToDo.WinUI
             int height = _resizeStartSize.Y + ((_resizeEdge & 8) != 0 ? dy : 0) + ((_resizeEdge & 4) != 0 ? -dy : 0);
             width = Math.Max(300, width);
             height = Math.Max(360, height);
-            SetWindowPos(WinRT.Interop.WindowNative.GetWindowHandle(this), IntPtr.Zero, 0, 0, width, height, 0x0016);
+            AppWindow.Resize(new SizeInt32(width, height));
+            ApplyFrameless(WinRT.Interop.WindowNative.GetWindowHandle(this));
         }
 
         private void OnResizeReleased(object sender, PointerRoutedEventArgs args)
@@ -974,6 +987,33 @@ namespace DeskBoxToDo.WinUI
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
 
+        private const int HotkeyId = 0xB1D0;
+        private const uint ModAlt = 0x0001;
+        private const uint VkQ = 0x51;
+        private const uint WmHotkey = 0x0312;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool RegisterHotKey(IntPtr hwnd, int id, uint modifiers, uint vk);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool UnregisterHotKey(IntPtr hwnd, int id);
+
+        private void FocusQuickAdd()
+        {
+            try
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                SetForegroundWindow(hwnd);
+                QuickAddBox.Focus(FocusState.Programmatic);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("focus quick add failed: " + ex.Message);
+            }
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hwnd);
         private bool _hookInstalled;
 
         private void InstallCursorHookOnce()
@@ -987,6 +1027,7 @@ namespace DeskBoxToDo.WinUI
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             ApplyFrameless(hwnd);
             InstallCursorHook(hwnd);
+            Console.WriteLine("hotkey registered: " + RegisterHotKey(hwnd, HotkeyId, ModAlt, VkQ));
 
             // WinUI re-applies the frame shortly after activation; strip it again.
             int attempts = 0;
