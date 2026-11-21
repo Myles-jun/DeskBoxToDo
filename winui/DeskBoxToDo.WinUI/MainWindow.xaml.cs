@@ -65,6 +65,60 @@ namespace DeskBoxToDo.WinUI
 
         }
 
+        private Microsoft.UI.Input.InputNonClientPointerSource _ncSource;
+
+        /// <summary>
+        /// Registers the window edges as real non-client resize borders, so Windows
+        /// gives native resize, snapping and resize cursors without WS_THICKFRAME.
+        /// </summary>
+        private void SetupNonClientRegions()
+        {
+            try
+            {
+                IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                WindowId id = Win32Interop.GetWindowIdFromWindow(hwnd);
+                _ncSource = Microsoft.UI.Input.InputNonClientPointerSource.GetForWindowId(id);
+                UpdateNonClientRegions();
+
+                AppWindow.Changed += (sender, args) =>
+                {
+                    if (args.DidSizeChange)
+                    {
+                        UpdateNonClientRegions();
+                    }
+                };
+
+                Console.WriteLine("non-client regions ready");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("non-client regions failed: " + ex.Message);
+            }
+        }
+
+        private void UpdateNonClientRegions()
+        {
+            if (_ncSource == null)
+            {
+                return;
+            }
+
+            int w = AppWindow.Size.Width;
+            int h = AppWindow.Size.Height;
+            int edge = 8;
+            int corner = 12;
+
+            _ncSource.SetRegionRects(Microsoft.UI.Input.NonClientRegionKind.LeftBorder,
+                new[] { new Windows.Graphics.RectInt32(0, 0, edge, h) });
+            _ncSource.SetRegionRects(Microsoft.UI.Input.NonClientRegionKind.RightBorder,
+                new[] { new Windows.Graphics.RectInt32(w - edge, 0, edge, h) });
+            _ncSource.SetRegionRects(Microsoft.UI.Input.NonClientRegionKind.TopBorder,
+                new[] { new Windows.Graphics.RectInt32(0, 0, w, edge) });
+            _ncSource.SetRegionRects(Microsoft.UI.Input.NonClientRegionKind.BottomBorder,
+                new[] { new Windows.Graphics.RectInt32(0, h - edge, w, edge) });
+
+            // 该枚举没有"角"区域，Windows 会用相邻边的组合处理转角
+        }
         private void ConfigureWindow()
         {
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -105,6 +159,7 @@ namespace DeskBoxToDo.WinUI
                 InstallCursorHookOnce();
             };
             boot.Start();
+            SetupNonClientRegions();
 
             int borderColor = unchecked((int)0xFFFFFFFE);
             DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
@@ -857,6 +912,16 @@ namespace DeskBoxToDo.WinUI
             QuickAddBox.Text = "";
             Reload();
             Console.WriteLine("quick add: " + title + " due=" + draft.Due + " rec=" + draft.RecurrenceMode);
+        }
+
+        private void OnCloseWindowClick(object sender, RoutedEventArgs args)
+        {
+            Close();
+        }
+
+        private void OnExitAppClick(object sender, RoutedEventArgs args)
+        {
+            Application.Current.Exit();
         }
 
         private void OnAddClick(object sender, RoutedEventArgs args)
