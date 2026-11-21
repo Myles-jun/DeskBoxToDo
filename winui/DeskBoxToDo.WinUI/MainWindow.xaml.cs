@@ -226,18 +226,11 @@ namespace DeskBoxToDo.WinUI
                     return;
                 }
 
+                // The layer is always ~92% opaque: during the system move loop the
+                // backdrop is suspended, and anything more transparent turns black.
                 float t = Math.Clamp(_settings.Brightness / 100f, 0f, 1f);
-                if (opaque)
-                {
-                    // Solid during the move/resize loop: the system backdrop is
-                    // suspended there, so a transparent layer would show black.
-                    TintLayer.Fill = new SolidColorBrush(Color.FromArgb(255, 26, 30, 40));
-                }
-                else
-                {
-                    byte alpha = (byte)Math.Clamp(24 + t * 170, 0, 255);
-                    TintLayer.Fill = new SolidColorBrush(Color.FromArgb(alpha, 20, 24, 34));
-                }
+                byte level = (byte)Math.Clamp(34 - t * 16, 14, 52);
+                TintLayer.Fill = new SolidColorBrush(Color.FromArgb(235, level, (byte)(level + 4), (byte)(level + 12)));
             }
             catch
             {
@@ -514,8 +507,8 @@ namespace DeskBoxToDo.WinUI
             float t = Math.Clamp(_settings.Brightness / 100f, 0f, 1f);
             if (TintLayer != null)
             {
-                byte alpha = (byte)Math.Clamp(24 + t * 170, 0, 255);
-                TintLayer.Fill = new SolidColorBrush(Color.FromArgb(alpha, 20, 24, 34));
+                byte level = (byte)Math.Clamp(34 - t * 16, 14, 52);
+                TintLayer.Fill = new SolidColorBrush(Color.FromArgb(235, level, (byte)(level + 4), (byte)(level + 12)));
             }
 
             if (_mica != null)
