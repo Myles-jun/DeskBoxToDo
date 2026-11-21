@@ -41,9 +41,10 @@ namespace DeskBoxToDo.WinUI
         public MainWindow()
         {
             InitializeComponent();
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(HeaderBar);
             ConfigureWindow();
             ApplyAcrylic();
-            HookDrag();
             BuildDetailPickers();
 
             TodoList.ItemsSource = _visible;
@@ -63,8 +64,9 @@ namespace DeskBoxToDo.WinUI
 
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
-                presenter.SetBorderAndTitleBar(false, false);
-                presenter.IsResizable = false;
+                presenter.IsResizable = true;
+                presenter.IsMaximizable = false;
+                presenter.IsMinimizable = true;
             }
 
             appWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Collapsed;
@@ -80,7 +82,7 @@ namespace DeskBoxToDo.WinUI
             appWindow.Resize(new SizeInt32(420, 560));
             appWindow.Move(new PointInt32(980, 380));
 
-            ApplyPopupStyle(hwnd);
+            InstallCursorHook(hwnd);
 
             int round = 2;
             DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
@@ -89,6 +91,81 @@ namespace DeskBoxToDo.WinUI
             DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
             int frameThickness = 0;
             DwmSetWindowAttribute(hwnd, 37, ref frameThickness, sizeof(int));
+        }
+
+        private delegate IntPtr WndProcDelegate(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+
+        private WndProcDelegate _wndProc;
+        private IntPtr _oldWndProc;
+
+        private const uint WmSetCursor = 0x0020;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+        private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr value);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "CallWindowProcW")]
+        private static extern IntPtr CallWindowProc(IntPtr previous, IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ScreenToClient(IntPtr hwnd, ref POINT point);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        /// <summary>
+        /// WinUI resets the cursor for every WM_SETCURSOR; subclassing is the only
+        /// reliable way to show the native resize arrows on a borderless window.
+        /// </summary>
+        private void InstallCursorHook(IntPtr hwnd)
+        {
+            _wndProc = (h, message, wParam, lParam) =>
+            {
+                if (message == WmSetCursor)
+                {
+                    GetCursorPos(out POINT point);
+                    ScreenToClient(hwnd, ref point);
+                    int border = 7;
+                    RECT client;
+                    GetClientRect(h, out client);
+                    bool left = point.X <= border;
+                    bool right = point.X >= client.Right - border;
+                    bool top = point.Y <= border;
+                    bool bottom = point.Y >= client.Bottom - border;
+
+                    int shape = 0;
+                    if ((left || right) && (top || bottom))
+                    {
+                        shape = (left && top) || (right && bottom) ? IdcSizeNwse : IdcSizeNesw;
+                    }
+                    else if (left || right)
+                    {
+                        shape = IdcSizeWe;
+                    }
+                    else if (top || bottom)
+                    {
+                        shape = IdcSizeNs;
+                    }
+
+                    if (shape != 0)
+                    {
+                        SetCursor(LoadCursor(IntPtr.Zero, (IntPtr)shape));
+                        return (IntPtr)1;
+                    }
+                }
+
+                return CallWindowProc(_oldWndProc, h, message, wParam, lParam);
+            };
+
+            _oldWndProc = SetWindowLongPtr(hwnd, -4, System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(_wndProc));
         }
 
         private const int GwlStyle = -16;
@@ -121,8 +198,57 @@ namespace DeskBoxToDo.WinUI
         private PointInt32 _resizeStartSize;
         private Windows.Foundation.Point _resizeStartPoint;
 
+        private const int IdcSizeNs = 32645;
+        private const int IdcSizeWe = 32644;
+        private const int IdcSizeNwse = 32642;
+        private const int IdcSizeNesw = 32643;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr LoadCursor(IntPtr instance, IntPtr name);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr SetCursor(IntPtr cursor);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr GetCursor();
+
+        private void ApplyEdgeCursor(PointerRoutedEventArgs args)
+        {
+            var point = args.GetCurrentPoint(RootGrid).Position;
+            int border = 7;
+            bool left = point.X <= border;
+            bool right = point.X >= RootGrid.ActualWidth - border;
+            bool top = point.Y <= border;
+            bool bottom = point.Y >= RootGrid.ActualHeight - border;
+
+            int shape = 0;
+            if ((left || right) && (top || bottom))
+            {
+                shape = left && top || right && bottom ? IdcSizeNwse : IdcSizeNesw;
+            }
+            else if (left || right)
+            {
+                shape = IdcSizeWe;
+            }
+            else if (top || bottom)
+            {
+                shape = IdcSizeNs;
+            }
+
+            if (shape != 0)
+            {
+                SetCursor(LoadCursor(IntPtr.Zero, (IntPtr)shape));
+            }
+        }
+
+        private void OnResizeExited(object sender, PointerRoutedEventArgs args)
+        {
+            SetCursor(LoadCursor(IntPtr.Zero, (IntPtr)32512)); // IDC_ARROW
+        }
+
         private void OnResizeEntered(object sender, PointerRoutedEventArgs args)
         {
+            ApplyEdgeCursor(args);
             var border = sender as FrameworkElement;
             if (border == null)
             {
@@ -140,7 +266,7 @@ namespace DeskBoxToDo.WinUI
             }
 
             _resizing = true;
-            _resizeEdge = border == ResizeRight ? 2 : border == ResizeBottom ? 8 : border == ResizeLeft ? 1 : 4;
+            _resizeEdge = 2;
             _resizeStartSize = new PointInt32(AppWindow.Size.Width, AppWindow.Size.Height);
             _resizeStartPoint = args.GetCurrentPoint(null).Position;
             border.CapturePointer(args.Pointer);
@@ -148,6 +274,8 @@ namespace DeskBoxToDo.WinUI
 
         private void OnResizeMoved(object sender, PointerRoutedEventArgs args)
         {
+            ApplyEdgeCursor(args);
+
             if (!_resizing)
             {
                 return;

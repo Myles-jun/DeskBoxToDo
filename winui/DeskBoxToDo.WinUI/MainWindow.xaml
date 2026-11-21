@@ -5,7 +5,7 @@
     xmlns:local="using:DeskBoxToDo.WinUI"
     Title="DeskBoxToDo">
 
-    <Grid RequestedTheme="Dark">
+    <Grid x:Name="RootGrid" RequestedTheme="Dark">
         <Rectangle x:Name="TintLayer" IsHitTestVisible="False" />
 
         <!-- 列表页 -->
@@ -225,20 +225,5 @@
             </Grid>
         </Grid>
 
-        <!-- 自实现缩放用的四条热区（窗口右侧/底部/左下等边缘） -->
-        <Border x:Name="ResizeRight" Width="6" HorizontalAlignment="Right" Background="Transparent"
-                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased"
-                PointerEntered="OnResizeEntered" />
-        <Border x:Name="ResizeBottom" Height="6" VerticalAlignment="Bottom" Background="Transparent"
-                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased"
-                PointerEntered="OnResizeEntered" />
-        <Border x:Name="ResizeLeft" Width="6" HorizontalAlignment="Left" Background="Transparent"
-                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased"
-                PointerEntered="OnResizeEntered" />
-        <Border x:Name="ResizeTop" Height="6" VerticalAlignment="Top" Background="Transparent"
-                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased"
-                PointerEntered="OnResizeEntered" />
-
-        <Border IsHitTestVisible="False" BorderBrush="#3AFFFFFF" BorderThickness="1" CornerRadius="9" />
     </Grid>
 </Window>
