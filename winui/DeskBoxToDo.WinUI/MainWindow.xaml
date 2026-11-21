@@ -12,6 +12,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
@@ -67,9 +68,14 @@
                 </StackPanel>
             </Grid>
 
-            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="9" Margin="16,0,16,8" x:Name="ColorRow" />
+            <Border Grid.Row="2" CornerRadius="9" Background="#12FFFFFF" Margin="12,0,12,8" Padding="10,2">
+                <TextBox x:Name="QuickAddBox" BorderThickness="0" Background="Transparent"
+                         PlaceholderText="记一条…（回车保存，自动识别时间/重复）"
+                         KeyDown="OnQuickAddKeyDown" />
+            </Border>
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="9" Margin="16,0,16,8" x:Name="ColorRow" />
 
-            <ListView Grid.Row="3" x:Name="TodoList" Margin="12,0,6,0" SelectionMode="None"
+            <ListView Grid.Row="4" x:Name="TodoList" Margin="12,0,6,0" SelectionMode="None"
                       IsItemClickEnabled="True" ItemClick="OnItemClick"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListView.ItemContainerStyle>
@@ -112,7 +118,7 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <Grid Grid.Row="4" Margin="16,6,16,10">
+            <Grid Grid.Row="5" Margin="16,6,16,10">
                 <TextBlock x:Name="FooterText" FontSize="11.5" Foreground="#C9CFDB" VerticalAlignment="Center" />
                 <Button x:Name="ClearDoneButton" Content="清除已完成" HorizontalAlignment="Right" Padding="6,2"
                         FontSize="11.5" Foreground="#C9CFDB" Background="Transparent" BorderThickness="0"
@@ -218,5 +224,18 @@
         </Grid>
 
         <Border x:Name="TopEdgeMask" Height="2" VerticalAlignment="Top" Background="#2E1A1E26" IsHitTestVisible="False" />
+        <!-- 自实现缩放用的四条热区（窗口右侧/底部/左下等边缘） -->
+        <Border x:Name="ResizeRight" Width="6" HorizontalAlignment="Right" Background="Transparent"
+                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased"
+                PointerEntered="OnResizeEntered" />
+        <Border x:Name="ResizeBottom" Height="6" VerticalAlignment="Bottom" Background="Transparent"
+                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased"
+                PointerEntered="OnResizeEntered" />
+        <Border x:Name="ResizeLeft" Width="6" HorizontalAlignment="Left" Background="Transparent"
+                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased"
+                PointerEntered="OnResizeEntered" />
+        <Border x:Name="ResizeTop" Height="6" VerticalAlignment="Top" Background="Transparent"
+                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased"
+                PointerEntered="OnResizeEntered" />
     </Grid>
 </Window>

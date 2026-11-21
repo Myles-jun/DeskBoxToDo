@@ -81,11 +81,87 @@ namespace DeskBoxToDo.WinUI
             appWindow.Resize(new SizeInt32(420, 560));
             appWindow.Move(new PointInt32(980, 380));
 
+            ApplyPopupStyle(hwnd);
+
             int round = 2;
             DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
             // 1px 系统边框染成和玻璃同色，避免顶部/四周出现白线
             int borderColor = unchecked((int)0x00281E1A);
             DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
+        }
+
+        private const int GwlStyle = -16;
+        private const int WsCaption = 0x00C00000;
+        private const int WsThickFrame = 0x00040000;
+        private const int WsSysMenu = 0x00080000;
+        private const int WsMinimizeBox = 0x00020000;
+        private const int WsMaximizeBox = 0x00010000;
+        private const int WsPopup = unchecked((int)0x80000000);
+
+        /// <summary>Strips every system frame bit so Windows stops drawing its 1px border.</summary>
+        private void ApplyPopupStyle(IntPtr hwnd)
+        {
+            int style = GetWindowLong(hwnd, GwlStyle);
+            style &= ~(WsCaption | WsThickFrame | WsSysMenu | WsMinimizeBox | WsMaximizeBox);
+            style |= WsPopup;
+            SetWindowLong(hwnd, GwlStyle, style);
+            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027); // NOMOVE|NOSIZE|NOZORDER|FRAMECHANGED
+        }
+
+        private bool _resizing;
+        private int _resizeEdge;
+        private PointInt32 _resizeStartSize;
+        private Windows.Foundation.Point _resizeStartPoint;
+
+        private void OnResizeEntered(object sender, PointerRoutedEventArgs args)
+        {
+            var border = sender as FrameworkElement;
+            if (border == null)
+            {
+                return;
+            }
+
+        }
+
+        private void OnResizePressed(object sender, PointerRoutedEventArgs args)
+        {
+            var border = sender as FrameworkElement;
+            if (border == null)
+            {
+                return;
+            }
+
+            _resizing = true;
+            _resizeEdge = border == ResizeRight ? 2 : border == ResizeBottom ? 8 : border == ResizeLeft ? 1 : 4;
+            _resizeStartSize = new PointInt32(AppWindow.Size.Width, AppWindow.Size.Height);
+            _resizeStartPoint = args.GetCurrentPoint(null).Position;
+            border.CapturePointer(args.Pointer);
+        }
+
+        private void OnResizeMoved(object sender, PointerRoutedEventArgs args)
+        {
+            if (!_resizing)
+            {
+                return;
+            }
+
+            var position = args.GetCurrentPoint(null).Position;
+            int dx = (int)(position.X - _resizeStartPoint.X);
+            int dy = (int)(position.Y - _resizeStartPoint.Y);
+            int width = _resizeStartSize.X + ((_resizeEdge & 2) != 0 ? dx : 0) + ((_resizeEdge & 1) != 0 ? -dx : 0);
+            int height = _resizeStartSize.Y + ((_resizeEdge & 8) != 0 ? dy : 0) + ((_resizeEdge & 4) != 0 ? -dy : 0);
+            width = Math.Max(300, width);
+            height = Math.Max(360, height);
+            AppWindow.Resize(new SizeInt32(width, height));
+        }
+
+        private void OnResizeReleased(object sender, PointerRoutedEventArgs args)
+        {
+            if (_resizing)
+            {
+                _resizing = false;
+                (sender as FrameworkElement)?.ReleasePointerCapture(args.Pointer);
+            }
         }
 
         private bool _dragging;
@@ -336,6 +412,37 @@ namespace DeskBoxToDo.WinUI
             }
         }
 
+        private void OnQuickAddKeyDown(object sender, KeyRoutedEventArgs args)
+        {
+            if (args.Key != Windows.System.VirtualKey.Enter)
+            {
+                return;
+            }
+
+            args.Handled = true;
+            string raw = (QuickAddBox.Text ?? "").Trim();
+            if (raw.Length == 0)
+            {
+                return;
+            }
+
+            TodoDraft draft = TodoParser.Parse(raw, AppConfig.Load(), DateTimeOffset.Now);
+            string title = string.IsNullOrWhiteSpace(draft.Title) ? raw : draft.Title;
+            TodoRepo.Save(
+                null,
+                title,
+                draft.Due,
+                draft.RecurrenceMode,
+                draft.ColorMarker,
+                draft.Important,
+                string.IsNullOrEmpty(draft.Notes) ? raw : draft.Notes,
+                draft.Steps);
+
+            QuickAddBox.Text = "";
+            Reload();
+            Console.WriteLine("quick add: " + title + " due=" + draft.Due + " rec=" + draft.RecurrenceMode);
+        }
+
         private void OnAddClick(object sender, RoutedEventArgs args)
         {
             OpenDetail(null);
@@ -452,6 +559,15 @@ namespace DeskBoxToDo.WinUI
             OnCloseDetail(sender, args);
             Reload();
         }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr hwnd, int index);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int SetWindowLong(IntPtr hwnd, int index, int value);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
 
         [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
