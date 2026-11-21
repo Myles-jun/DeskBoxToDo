@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
@@ -19,14 +21,22 @@ namespace DeskBoxToDo.WinUI
     {
         private DesktopAcrylicController _acrylic;
         private SystemBackdropConfiguration _configuration;
+        private GlassSettings _settings = GlassSettings.Load();
 
+        private readonly ObservableCollection<TodoItem> _visible = new ObservableCollection<TodoItem>();
         private List<TodoItem> _all = new List<TodoItem>();
         private string _filter = "all";
         private string _colorFilter;
 
-        private bool _dragging;
-        private PointInt32 _dragStartWindow;
-        private Windows.Foundation.Point _dragStartCursor;
+        private TodoItem _editing;
+        private bool _editingImportant;
+        private bool _loadingDetail;
+
+        private static readonly (string Key, string Label)[] Repeats =
+        {
+            ("none", "不重复"), ("daily", "每天"), ("weekly", "每周"),
+            ("monthly", "每月"), ("weekdays", "工作日")
+        };
 
         public MainWindow()
         {
@@ -34,7 +44,16 @@ namespace DeskBoxToDo.WinUI
             ConfigureWindow();
             ApplyAcrylic();
             HookDrag();
+            BuildDetailPickers();
+
+            TodoList.ItemsSource = _visible;
+            BrightnessSlider.Value = _settings.Brightness;
+            SourceLabel.Text = TodoStore.CurrentMode() == "deskbox"
+                ? "DeskBox 小组件数据（与 DeskBox 同步）"
+                : "独立数据（%LOCALAPPDATA%\\DeskBoxToDo\\todo.json）";
+
             Reload();
+            TopEdgeMask.Visibility = Visibility.Visible;
         }
 
         private void ConfigureWindow()
@@ -46,16 +65,75 @@ namespace DeskBoxToDo.WinUI
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
                 presenter.SetBorderAndTitleBar(false, false);
-                presenter.IsResizable = true;
+                presenter.IsResizable = false;
             }
+
+            appWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Collapsed;
+            appWindow.TitleBar.BackgroundColor = Colors.Transparent;
+            appWindow.TitleBar.ForegroundColor = Colors.Transparent;
+            appWindow.TitleBar.InactiveBackgroundColor = Colors.Transparent;
+            appWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
+            appWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+            appWindow.TitleBar.ButtonForegroundColor = Colors.Transparent;
+            appWindow.TitleBar.ButtonInactiveForegroundColor = Colors.Transparent;
+            appWindow.TitleBar.ButtonHoverBackgroundColor = Color.FromArgb(40, 255, 255, 255);
 
             appWindow.Resize(new SizeInt32(420, 560));
             appWindow.Move(new PointInt32(980, 380));
 
             int round = 2;
             DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
-            int border = unchecked((int)0xFFFFFFFE);
-            DwmSetWindowAttribute(hwnd, 34, ref border, sizeof(int));
+            // 1px 系统边框染成和玻璃同色，避免顶部/四周出现白线
+            int borderColor = unchecked((int)0x00281E1A);
+            DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
+        }
+
+        private bool _dragging;
+        private PointInt32 _dragStartWindow;
+        private Windows.Foundation.Point _dragStartCursor;
+
+        private void HookDrag()
+        {
+            HeaderBar.PointerPressed += (sender, args) =>
+            {
+                var point = args.GetCurrentPoint(HeaderBar);
+                if (!point.Properties.IsLeftButtonPressed)
+                {
+                    return;
+                }
+
+                if (args.OriginalSource is Button || args.OriginalSource is FontIcon)
+                {
+                    return;
+                }
+
+                _dragging = true;
+                _dragStartCursor = point.Position;
+                _dragStartWindow = AppWindow.Position;
+                HeaderBar.CapturePointer(args.Pointer);
+            };
+
+            HeaderBar.PointerMoved += (sender, args) =>
+            {
+                if (!_dragging)
+                {
+                    return;
+                }
+
+                var point = args.GetCurrentPoint(HeaderBar);
+                AppWindow.Move(new PointInt32(
+                    _dragStartWindow.X + (int)(point.Position.X - _dragStartCursor.X),
+                    _dragStartWindow.Y + (int)(point.Position.Y - _dragStartCursor.Y)));
+            };
+
+            HeaderBar.PointerReleased += (sender, args) =>
+            {
+                if (_dragging)
+                {
+                    _dragging = false;
+                    HeaderBar.ReleasePointerCapture(args.Pointer);
+                }
+            };
         }
 
         private void ApplyAcrylic()
@@ -75,71 +153,48 @@ namespace DeskBoxToDo.WinUI
             _acrylic = new DesktopAcrylicController
             {
                 Kind = DesktopAcrylicKind.Thin,
-                TintColor = Color.FromArgb(255, 24, 28, 38),
-                TintOpacity = 0.30f,
-                LuminosityOpacity = 0.55f,
                 FallbackColor = Color.FromArgb(255, 22, 26, 34)
             };
             _acrylic.SetSystemBackdropConfiguration(_configuration);
             _acrylic.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
-            Console.WriteLine("acrylic thin enabled");
+            ApplyBrightness();
         }
 
-        private void HookDrag()
+        /// <summary>Brightness 0 = clear/light glass, 100 = dark glass.</summary>
+        private void ApplyBrightness()
         {
-            HeaderBar.PointerPressed += (sender, args) =>
+            if (_acrylic == null)
             {
-                var point = args.GetCurrentPoint(HeaderBar);
-                if (!point.Properties.IsLeftButtonPressed)
-                {
-                    return;
-                }
+                return;
+            }
 
-                // Only the empty part of the header drags; buttons keep working.
-                var source = args.OriginalSource as FrameworkElement;
-                if (source is Button || source is FontIcon)
-                {
-                    return;
-                }
+            float t = Math.Clamp(_settings.Brightness / 100f, 0f, 1f);
+            _acrylic.TintColor = Color.FromArgb(255, 26, 30, 40);
+            _acrylic.TintOpacity = 0.06f + t * 0.62f;
+            _acrylic.LuminosityOpacity = 0.20f + t * 0.60f;
+            BrightnessLabel.Text = "当前 " + _settings.Brightness + "（0 最清透 / 100 最厚重）";
+        }
 
-                _dragging = true;
-                _dragStartCursor = point.Position;
-                _dragStartWindow = AppWindow.Position;
-                HeaderBar.CapturePointer(args.Pointer);
-            };
-
-            HeaderBar.PointerMoved += (sender, args) =>
+        private void OnBrightnessChanged(object sender, RangeBaseValueChangedEventArgs args)
+        {
+            if (BrightnessLabel == null)
             {
-                if (!_dragging)
-                {
-                    return;
-                }
+                return;
+            }
 
-                var point = args.GetCurrentPoint(HeaderBar);
-                int dx = (int)(point.Position.X - _dragStartCursor.X);
-                int dy = (int)(point.Position.Y - _dragStartCursor.Y);
-                AppWindow.Move(new PointInt32(_dragStartWindow.X + dx, _dragStartWindow.Y + dy));
-            };
-
-            HeaderBar.PointerReleased += (sender, args) =>
-            {
-                if (_dragging)
-                {
-                    _dragging = false;
-                    HeaderBar.ReleasePointerCapture(args.Pointer);
-                }
-            };
+            _settings.Brightness = (int)Math.Round(args.NewValue);
+            _settings.Save();
+            ApplyBrightness();
         }
 
         public void Reload()
         {
             string path;
             _all = TodoStore.Load(out path);
-            FooterText.Text = _all.Count + " 条 · " + (TodoStore.CurrentMode() == "deskbox" ? "DeskBox 数据" : "独立数据");
-            Console.WriteLine("loaded " + _all.Count + " items from " + path);
             UpdateTabs();
             UpdateColorRow();
             ApplyFilter();
+            Console.WriteLine("loaded " + _all.Count + " items from " + path);
         }
 
         private int CountFor(string filter)
@@ -228,31 +283,174 @@ namespace DeskBoxToDo.WinUI
                 rows = rows.Where(item => item.ColorMarker == _colorFilter);
             }
 
-            var visible = rows
+            var ordered = rows
                 .OrderBy(item => item.IsCompleted ? 1 : 0)
                 .ThenBy(item => item.DueDate ?? DateTimeOffset.MaxValue)
                 .ToList();
 
-            TodoList.ItemsSource = visible;
-            FooterText.Text = visible.Count + " 条 · " + (TodoStore.CurrentMode() == "deskbox" ? "DeskBox 数据" : "独立数据");
+            _visible.Clear();
+            foreach (TodoItem item in ordered)
+            {
+                _visible.Add(item);
+            }
+
+            FooterText.Text = _visible.Count + " 条 · " +
+                (TodoStore.CurrentMode() == "deskbox" ? "DeskBox 数据" : "独立数据");
         }
 
         private void OnTabTapped(object sender, TappedRoutedEventArgs args)
         {
-            var element = sender as FrameworkElement;
-            if (element == null || element.Tag == null)
+            if (sender is FrameworkElement element && element.Tag != null)
             {
-                return;
+                _filter = element.Tag.ToString();
+                UpdateTabs();
+                ApplyFilter();
+            }
+        }
+
+        private void OnCheckBoxClick(object sender, RoutedEventArgs args)
+        {
+            if (sender is CheckBox box && box.Tag is string id)
+            {
+                bool done = box.IsChecked == true;
+                TodoRepo.SetCompleted(id, done);
+                Reload();
+            }
+        }
+
+        private void OnClearDoneClick(object sender, RoutedEventArgs args)
+        {
+            foreach (TodoItem item in _all.Where(row => row.IsCompleted).ToList())
+            {
+                TodoRepo.Delete(item.Id);
             }
 
-            _filter = element.Tag.ToString();
-            UpdateTabs();
-            ApplyFilter();
+            Reload();
+        }
+
+        private void OnItemClick(object sender, ItemClickEventArgs args)
+        {
+            if (args.ClickedItem is TodoItem item)
+            {
+                OpenDetail(item);
+            }
         }
 
         private void OnAddClick(object sender, RoutedEventArgs args)
         {
-            Console.WriteLine("add clicked");
+            OpenDetail(null);
+        }
+
+        private void BuildDetailPickers()
+        {
+            foreach (var repeat in Repeats)
+            {
+                RepeatBox.Items.Add(new ComboBoxItem { Content = repeat.Label, Tag = repeat.Key });
+            }
+
+            foreach (var color in TodoItem.Palette)
+            {
+                ColorBox.Items.Add(new ComboBoxItem { Content = color.Key, Tag = color.Key });
+            }
+
+            RepeatBox.SelectedIndex = 0;
+            ColorBox.SelectedIndex = 0;
+        }
+
+        private void OpenDetail(TodoItem item)
+        {
+            _loadingDetail = true;
+            _editing = item;
+            _editingImportant = item?.IsImportant ?? false;
+
+            TitleBox.Text = item?.Text ?? "";
+            NotesBox.Text = item?.Notes ?? "";
+            DateBox.Date = item?.DueDate?.ToLocalTime() ?? DateTimeOffset.Now.Date.AddDays(1);
+            TimeBox.Time = (item?.DueDate?.ToLocalTime() ?? DateTimeOffset.Now.Date.AddDays(1).AddHours(9)).TimeOfDay;
+
+            string mode = item?.RecurrenceMode ?? "none";
+            RepeatBox.SelectedIndex = Math.Max(0, Array.FindIndex(Repeats, entry => entry.Key == mode));
+
+            string color = item?.ColorMarker ?? "白";
+            ColorBox.SelectedIndex = Math.Max(0, TodoItem.Palette.FindIndex(entry => entry.Key == color));
+
+            var root = TodoRepo.ReadRoot();
+            var node = item == null ? null : TodoRepo.Find(root, item.Id);
+            StepsBox.Text = string.Join("\r\n", TodoRepo.StepTexts(node));
+
+            UpdateStarIcon();
+            DetailHint.Text = item == null ? "新待办" : "编辑 · " + item.Id.Substring(0, 6);
+            DetailPage.Visibility = Visibility.Visible;
+            ListPage.Visibility = Visibility.Collapsed;
+            _loadingDetail = false;
+            TitleBox.Focus(FocusState.Programmatic);
+        }
+
+        private void UpdateStarIcon()
+        {
+            StarIcon.Glyph = _editingImportant ? "\uE735" : "\uE734";
+            StarIcon.Foreground = new SolidColorBrush(_editingImportant
+                ? Color.FromArgb(255, 233, 196, 106)
+                : Color.FromArgb(255, 230, 234, 242));
+        }
+
+        private void OnToggleDetailImportant(object sender, RoutedEventArgs args)
+        {
+            _editingImportant = !_editingImportant;
+            UpdateStarIcon();
+        }
+
+        private void OnCloseDetail(object sender, RoutedEventArgs args)
+        {
+            DetailPage.Visibility = Visibility.Collapsed;
+            ListPage.Visibility = Visibility.Visible;
+            _editing = null;
+        }
+
+        private void OnDeleteDetail(object sender, RoutedEventArgs args)
+        {
+            if (_editing != null)
+            {
+                TodoRepo.Delete(_editing.Id);
+            }
+
+            OnCloseDetail(sender, args);
+            Reload();
+        }
+
+        private void OnSaveDetail(object sender, RoutedEventArgs args)
+        {
+            string title = (TitleBox.Text ?? "").Trim();
+            if (title.Length == 0)
+            {
+                DetailHint.Text = "标题不能为空";
+                return;
+            }
+
+            DateTimeOffset? due = null;
+            if (DateBox.Date != null)
+            {
+                DateTime date = DateBox.Date.Value.Date;
+                TimeSpan time = TimeBox.Time;
+                due = new DateTimeOffset(date.Year, date.Month, date.Day, time.Hours, time.Minutes, 0, TimeZoneInfo.Local.GetUtcOffset(date));
+            }
+
+            string repeat = (RepeatBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "none";
+            string color = (ColorBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "白";
+            var steps = (StepsBox.Text ?? "").Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+            TodoRepo.Save(
+                _editing?.Id,
+                title,
+                due,
+                repeat,
+                color,
+                _editingImportant,
+                NotesBox.Text ?? "",
+                steps);
+
+            OnCloseDetail(sender, args);
+            Reload();
         }
 
         [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
