@@ -44,6 +44,7 @@ namespace DeskBoxToDo.WinUI
             ConfigureWindow();
             ApplyAcrylic();
             HookDrag();
+            HookEdgeResize();
             BuildDetailPickers();
 
             TodoList.ItemsSource = _visible;
@@ -73,7 +74,7 @@ namespace DeskBoxToDo.WinUI
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
                 presenter.SetBorderAndTitleBar(false, false);
-                presenter.IsResizable = true;
+                presenter.IsResizable = false;
                 presenter.IsMaximizable = false;
             }
 
@@ -281,6 +282,7 @@ namespace DeskBoxToDo.WinUI
         private bool _resizing;
         private int _resizeEdge;
         private PointInt32 _resizeStartSize;
+        private POINT _resizeStartScreen;
         private Windows.Foundation.Point _resizeStartPoint;
 
         private const int IdcSizeNs = 32645;
@@ -422,14 +424,14 @@ namespace DeskBoxToDo.WinUI
                 return;
             }
 
-            var position = args.GetCurrentPoint(null).Position;
-            int dx = (int)(position.X - _resizeStartPoint.X);
-            int dy = (int)(position.Y - _resizeStartPoint.Y);
+            GetCursorPos(out POINT now);
+            int dx = now.X - _resizeStartScreen.X;
+            int dy = now.Y - _resizeStartScreen.Y;
             int width = _resizeStartSize.X + ((_resizeEdge & 2) != 0 ? dx : 0) + ((_resizeEdge & 1) != 0 ? -dx : 0);
             int height = _resizeStartSize.Y + ((_resizeEdge & 8) != 0 ? dy : 0) + ((_resizeEdge & 4) != 0 ? -dy : 0);
             width = Math.Max(300, width);
             height = Math.Max(360, height);
-            AppWindow.Resize(new SizeInt32(width, height));
+            SetWindowPos(WinRT.Interop.WindowNative.GetWindowHandle(this), IntPtr.Zero, 0, 0, width, height, 0x0016);
         }
 
         private void OnResizeReleased(object sender, PointerRoutedEventArgs args)
@@ -455,6 +457,44 @@ namespace DeskBoxToDo.WinUI
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool GetCursorPos(out POINT point);
 
+        private void HookEdgeResize()
+        {
+            RootGrid.PointerPressed += (sender, args) =>
+            {
+                var point = args.GetCurrentPoint(RootGrid);
+                if (!point.Properties.IsLeftButtonPressed)
+                {
+                    return;
+                }
+
+                double x = point.Position.X;
+                double y = point.Position.Y;
+                double w = RootGrid.ActualWidth;
+                double h = RootGrid.ActualHeight;
+                int border = 7;
+
+                int edge = 0;
+                if (x <= border) { edge |= 1; }
+                if (x >= w - border) { edge |= 2; }
+                if (y <= border) { edge |= 4; }
+                if (y >= h - border) { edge |= 8; }
+
+                if (edge == 0)
+                {
+                    return;
+                }
+
+                _resizing = true;
+                _resizeEdge = edge;
+                _resizeStartSize = new PointInt32(AppWindow.Size.Width, AppWindow.Size.Height);
+                GetCursorPos(out _resizeStartScreen);
+                RootGrid.CapturePointer(args.Pointer);
+                Console.WriteLine("resize start edge=" + edge + " size=" + _resizeStartSize.X);
+            };
+
+            RootGrid.PointerMoved += (sender, args) => OnResizeMoved(sender, args);
+            RootGrid.PointerReleased += (sender, args) => OnResizeReleased(sender, args);
+        }
         private void HookDrag()
         {
             HeaderBar.PointerPressed += (sender, args) =>
@@ -945,7 +985,21 @@ namespace DeskBoxToDo.WinUI
 
             _hookInstalled = true;
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            ApplyFrameless(hwnd);
             InstallCursorHook(hwnd);
+
+            // WinUI re-applies the frame shortly after activation; strip it again.
+            int attempts = 0;
+            var timer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            timer.Tick += (sender, args) =>
+            {
+                ApplyFrameless(hwnd);
+                if (++attempts >= 6)
+                {
+                    timer.Stop();
+                }
+            };
+            timer.Start();
             Console.WriteLine("wndproc hook installed");
         }
         [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
