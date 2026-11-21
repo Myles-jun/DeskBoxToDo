@@ -49,6 +49,14 @@ namespace DeskBoxToDo.WinUI
 
             TodoList.ItemsSource = _visible;
             BrightnessSlider.Value = _settings.Brightness;
+            foreach (var entry in MaterialBox.Items)
+            {
+                if (entry is ComboBoxItem item && (string)item.Tag == _settings.Material)
+                {
+                    MaterialBox.SelectedItem = item;
+                    break;
+                }
+            }
             SourceLabel.Text = TodoStore.CurrentMode() == "deskbox"
                 ? "DeskBox 小组件数据（与 DeskBox 同步）"
                 : "独立数据（%LOCALAPPDATA%\\DeskBoxToDo\\todo.json）";
@@ -358,27 +366,77 @@ namespace DeskBoxToDo.WinUI
             };
         }
 
-        private void ApplyAcrylic()
+        private MicaController _mica;
+
+        /// <summary>Rebuilds the backdrop for the chosen material.</summary>
+        public void ApplyMaterial()
         {
-            if (!DesktopAcrylicController.IsSupported())
+            try
             {
-                Console.WriteLine("acrylic unsupported");
-                return;
+                if (_mica != null)
+                {
+                    _mica.RemoveAllSystemBackdropTargets();
+                    _mica.Dispose();
+                    _mica = null;
+                }
+
+                if (_acrylic != null)
+                {
+                    _acrylic.RemoveAllSystemBackdropTargets();
+                    _acrylic.Dispose();
+                    _acrylic = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("backdrop dispose: " + ex.Message);
             }
 
+            ApplyAcrylic();
+            Console.WriteLine("material = " + _settings.Material);
+        }
+
+        private void ApplyAcrylic()
+        {
             _configuration = new SystemBackdropConfiguration
             {
                 IsInputActive = true,
                 Theme = SystemBackdropTheme.Dark
             };
 
-            _acrylic = new DesktopAcrylicController
+            // Mica samples the wallpaper once instead of re-blurring on every
+            // move, so dragging stays smooth and the backdrop does not flash.
+            bool wantAcrylic = string.Equals(_settings.Material, "acrylic", StringComparison.OrdinalIgnoreCase);
+
+            if (!wantAcrylic && MicaController.IsSupported())
             {
-                Kind = DesktopAcrylicKind.Thin,
-                FallbackColor = Color.FromArgb(255, 22, 26, 34)
-            };
-            _acrylic.SetSystemBackdropConfiguration(_configuration);
-            _acrylic.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+                _mica = new MicaController { Kind = MicaKind.Base };
+                _mica.SetSystemBackdropConfiguration(_configuration);
+                _mica.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+                _mica.TintColor = Color.FromArgb(255, 24, 28, 38);
+                _mica.FallbackColor = Color.FromArgb(255, 24, 28, 38);
+                Console.WriteLine("backdrop: mica");
+                ApplyBrightness();
+                return;
+            }
+
+            if (DesktopAcrylicController.IsSupported())
+            {
+                _acrylic = new DesktopAcrylicController
+                {
+                    Kind = string.Equals(_settings.Material, "acrylic-thin", StringComparison.OrdinalIgnoreCase)
+                        ? DesktopAcrylicKind.Thin
+                        : DesktopAcrylicKind.Base,
+                    TintColor = Color.FromArgb(255, 24, 28, 38),
+                    // Fallback matches the tint, so a temporary blur loss shows
+                    // the normal colour instead of flashing black.
+                    FallbackColor = Color.FromArgb(255, 24, 28, 38)
+                };
+                _acrylic.SetSystemBackdropConfiguration(_configuration);
+                _acrylic.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+                Console.WriteLine("backdrop: acrylic");
+            }
+
             ApplyBrightness();
         }
 
@@ -392,6 +450,12 @@ namespace DeskBoxToDo.WinUI
                 TintLayer.Fill = new SolidColorBrush(Color.FromArgb(alpha, 20, 24, 34));
             }
 
+            if (_mica != null)
+            {
+                _mica.TintOpacity = 0.06f + t * 0.62f;
+                _mica.LuminosityOpacity = 0.20f + t * 0.60f;
+            }
+
             if (_acrylic != null)
             {
                 _acrylic.TintOpacity = 0.06f + t * 0.62f;
@@ -399,6 +463,21 @@ namespace DeskBoxToDo.WinUI
             }
 
             BrightnessLabel.Text = "当前 " + _settings.Brightness + "（0 最清透 / 100 最厚重）";
+        }
+
+        private void OnMaterialChanged(object sender, SelectionChangedEventArgs args)
+        {
+            if (_loadingDetail || MaterialBox == null)
+            {
+                return;
+            }
+
+            if (MaterialBox.SelectedItem is ComboBoxItem item && item.Tag is string material)
+            {
+                _settings.Material = material;
+                _settings.Save();
+                ApplyMaterial();
+            }
         }
 
         private void OnBrightnessChanged(object sender, RangeBaseValueChangedEventArgs args)

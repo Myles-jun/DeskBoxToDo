@@ -40,6 +40,12 @@
                                     <Slider x:Name="BrightnessSlider" Minimum="0" Maximum="100"
                                             StepFrequency="1" ValueChanged="OnBrightnessChanged" />
                                     <TextBlock x:Name="BrightnessLabel" FontSize="11.5" Foreground="#8A8F9A" />
+                                    <TextBlock Text="材质" FontSize="12.5" FontWeight="SemiBold" Margin="0,6,0,0" />
+                                    <ComboBox x:Name="MaterialBox" HorizontalAlignment="Stretch" SelectionChanged="OnMaterialChanged">
+                                        <ComboBoxItem Content="云母（拖动最稳）" Tag="mica" />
+                                        <ComboBoxItem Content="亚克力（更通透，拖动可能闪）" Tag="acrylic" />
+                                        <ComboBoxItem Content="亚克力 Thin（最透）" Tag="acrylic-thin" />
+                                    </ComboBox>
                                     <TextBlock Text="数据来源" FontSize="12.5" FontWeight="SemiBold" Margin="0,6,0,0" />
                                     <TextBlock x:Name="SourceLabel" FontSize="11.5" Foreground="#8A8F9A" TextWrapping="Wrap" />
                                 </StackPanel>

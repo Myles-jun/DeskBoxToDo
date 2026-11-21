@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text.Json;
 
@@ -8,6 +8,9 @@ namespace DeskBoxToDo.WinUI
     public sealed class GlassSettings
     {
         public int Brightness { get; set; } = 42;
+
+        /// <summary>mica = 拖动最稳；acrylic = 更通透但拖动时会闪。</summary>
+        public string Material { get; set; } = "mica";
 
         private static string FilePath =>
             Path.Combine(TodoStore.DataRoot, "winui-settings.json");
