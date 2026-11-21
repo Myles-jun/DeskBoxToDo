@@ -36,4 +36,8 @@ wtest_exe.txt
 RC*
 src/*.broken
 docs/star.png
-docs/glass.png
+docs/glass.png[Bb]in/
+[Oo]bj/
+probe-winui/
+probe-wpf/
+*.user
