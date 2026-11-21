@@ -91,6 +91,7 @@ namespace DeskBoxToDo.WinUI
             appWindow.Move(new PointInt32(980, 380));
 
             InstallCursorHook(hwnd);
+            ApplyClassBackground(hwnd);
 
             int round = 2;
             DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
@@ -137,7 +138,15 @@ namespace DeskBoxToDo.WinUI
         {
             _wndProc = (h, message, wParam, lParam) =>
             {
-                if (message == WmSetCursor)
+                if (message == 0x0231) // WM_ENTERSIZEMOVE
+                {
+                    SetTintOpaque(true);
+                }
+                else if (message == 0x0232) // WM_EXITSIZEMOVE
+                {
+                    SetTintOpaque(false);
+                }
+                else if (message == WmSetCursor)
                 {
                     GetCursorPos(out POINT point);
                     ScreenToClient(hwnd, ref point);
@@ -174,6 +183,54 @@ namespace DeskBoxToDo.WinUI
             };
 
             _oldWndProc = SetWindowLongPtr(hwnd, -4, System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(_wndProc));
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetClassLongPtrW")]
+        private static extern IntPtr SetClassLongPtr(IntPtr hwnd, int index, IntPtr value);
+
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        private static extern IntPtr CreateSolidBrush(int color);
+
+        /// <summary>
+        /// Window class background: while the frame is being dragged/resized,
+        /// Windows paints newly exposed pixels with this brush. Without it the
+        /// trailing edge flashes pure black before XAML catches up.
+        /// </summary>
+        private void ApplyClassBackground(IntPtr hwnd)
+        {
+            try
+            {
+                // COLORREF is 0x00BBGGRR: this matches the glass tint (30, 34, 44).
+                IntPtr brush = CreateSolidBrush(unchecked((int)0x002C221E));
+                SetClassLongPtr(hwnd, -10, brush);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("class background failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// While Windows runs the move/resize loop the backdrop gets stretched and
+        /// can flash black at the trailing edge. Painting the tint solid for those
+        /// few hundred milliseconds hides it completely.
+        /// </summary>
+        private void SetTintOpaque(bool opaque)
+        {
+            try
+            {
+                if (TintLayer == null)
+                {
+                    return;
+                }
+
+                float t = Math.Clamp(_settings.Brightness / 100f, 0f, 1f);
+                byte alpha = opaque ? (byte)255 : (byte)Math.Clamp(24 + t * 190, 0, 255);
+                TintLayer.Fill = new SolidColorBrush(Color.FromArgb(alpha, 20, 24, 34));
+            }
+            catch
+            {
+            }
         }
 
         private const int GwlStyle = -16;
