@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -46,8 +47,12 @@ namespace DeskBoxToDo.WinUI
             InitializeComponent();
             ConfigureWindow();
             ApplyAcrylic();
-            HookDrag();
             HookResizeBorders();
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(HeaderBar);
+            Console.WriteLine("titlebar host set");
+            _dragHook = NativeDragHook.Install(this, 46);
+            Console.WriteLine("main drag hook ready");
             StartReminderTimer();
 
             if (Environment.GetEnvironmentVariable("DBT_AI_TEST") == "1")
@@ -204,7 +209,7 @@ namespace DeskBoxToDo.WinUI
             boot.Tick += (sender, args) =>
             {
                 boot.Stop();
-                InstallCursorHookOnce();
+                InstallTrayAndHotkeyOnce();
             };
             boot.Start();
 
@@ -251,85 +256,6 @@ namespace DeskBoxToDo.WinUI
         /// WinUI resets the cursor for every WM_SETCURSOR; subclassing is the only
         /// reliable way to show the native resize arrows on a borderless window.
         /// </summary>
-        private void InstallCursorHook(IntPtr hwnd)
-        {
-            _wndProc = (h, message, wParam, lParam) =>
-            {
-                if (message == TrayIcon.CallbackMessage)
-                {
-                    long mouse = lParam.ToInt64() & 0xFFFF;
-                    if (mouse == 0x0202 || mouse == 0x0205) // WM_LBUTTONUP / WM_RBUTTONUP
-                    {
-                        if (mouse == 0x0202)
-                        {
-                            ShowFromTray();
-                        }
-                        else
-                        {
-                            int command = _tray?.ShowMenu(_alwaysOnTop) ?? 0;
-                            HandleTrayCommand(command);
-                        }
-                    }
-
-                    return IntPtr.Zero;
-                }
-
-                if (message == WmHotkey)
-                {
-                    Console.WriteLine("WM_HOTKEY received");
-                    HandleHotkey();
-                    return IntPtr.Zero;
-                }
-
-                if (message == 0x0231) // WM_ENTERSIZEMOVE
-                {
-                    SetTintOpaque(true);
-                }
-                else if (message == 0x0232) // WM_EXITSIZEMOVE
-                {
-                    SetTintOpaque(false);
-                }
-                else if (message == WmSetCursor)
-                {
-                    GetCursorPos(out POINT point);
-                    ScreenToClient(hwnd, ref point);
-                    int border = 7;
-                    RECT client;
-                    GetClientRect(h, out client);
-                    bool left = point.X <= border;
-                    bool right = point.X >= client.Right - border;
-                    bool top = point.Y <= border;
-                    bool bottom = point.Y >= client.Bottom - border;
-
-                    int shape = 0;
-                    if ((left || right) && (top || bottom))
-                    {
-                        shape = (left && top) || (right && bottom) ? IdcSizeNwse : IdcSizeNesw;
-                    }
-                    else if (left || right)
-                    {
-                        shape = IdcSizeWe;
-                    }
-                    else if (top || bottom)
-                    {
-                        shape = IdcSizeNs;
-                    }
-
-                    if (shape != 0)
-                    {
-                        SetCursor(LoadCursor(IntPtr.Zero, (IntPtr)shape));
-                        Console.WriteLine("setcursor hook: " + point.X + "," + point.Y + " shape=" + shape);
-                        return (IntPtr)1;
-                    }
-                }
-
-                return CallWindowProc(_oldWndProc, h, message, wParam, lParam);
-            };
-
-            _oldWndProc = SetWindowLongPtr(hwnd, -4, System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(_wndProc));
-        }
-
-        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetClassLongPtrW")]
         private static extern IntPtr SetClassLongPtr(IntPtr hwnd, int index, IntPtr value);
 
         [System.Runtime.InteropServices.DllImport("gdi32.dll")]
@@ -680,85 +606,6 @@ namespace DeskBoxToDo.WinUI
             }
 
             return false;
-        }
-        private void HookDrag()
-        {
-            Console.WriteLine("drag handlers attached");
-            RootGrid.PointerPressed += (sender, args) =>
-            {
-                Console.WriteLine("root pressed");
-                var point = args.GetCurrentPoint(RootGrid);
-                if (!point.Properties.IsLeftButtonPressed)
-                {
-                    return;
-                }
-
-                // Drag from anywhere that is not an interactive control (header,
-                // footer, empty list space) - same feel as 1.x.
-                var pressSource = args.OriginalSource as DependencyObject;
-                bool interactive = IsInteractiveSource(pressSource);
-                Console.WriteLine("press source=" + (pressSource == null ? "null" : pressSource.GetType().Name) + " interactive=" + interactive);
-                if (interactive)
-                {
-                    return;
-                }
-
-                _dragging = true;
-                Console.WriteLine("drag start");
-                SimplifyBackdropForInteraction(true);
-                GetCursorPos(out _dragStartScreen);
-                _dragStartWindow = AppWindow.Position;
-                var captureTarget = args.OriginalSource as UIElement ?? RootGrid;
-                captureTarget.CapturePointer(args.Pointer);
-            };
-
-            RootGrid.PointerMoved += (sender, args) =>
-            {
-                if (!_dragging)
-                {
-                    return;
-                }
-
-                GetCursorPos(out POINT now);
-                int targetX = _dragStartWindow.X + (now.X - _dragStartScreen.X);
-                int targetY = _dragStartWindow.Y + (now.Y - _dragStartScreen.Y);
-                Console.WriteLine("drag move " + targetX + "," + targetY);
-
-                try
-                {
-                    PointInt32 snapped = SnapDragPosition(targetX, targetY, AppWindow.Size.Width, AppWindow.Size.Height);
-                    AppWindow.Move(snapped);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("drag move failed: " + ex.Message);
-                    AppWindow.Move(new PointInt32(targetX, targetY));
-                }
-            };
-
-            RootGrid.PointerReleased += (sender, args) =>
-            {
-                if (!_dragging)
-                {
-                    return;
-                }
-
-                _dragging = false;
-                RootGrid.ReleasePointerCapture(args.Pointer);
-                SimplifyBackdropForInteraction(false);
-                ShowSnapGuides(false, 0, false, 0);
-                Console.WriteLine("drag end");
-            };
-
-            RootGrid.PointerCaptureLost += (sender, args) =>
-            {
-                if (_dragging)
-                {
-                    _dragging = false;
-                    SimplifyBackdropForInteraction(false);
-                    ShowSnapGuides(false, 0, false, 0);
-                }
-            };
         }
         private MicaController _mica;
 
@@ -1510,6 +1357,91 @@ namespace DeskBoxToDo.WinUI
         /// 1.x behaviour: copy whatever is selected in the front window, then show
         /// the confirm card prefilled with it; fall back to focusing the input box.
         /// </summary>
+        /// <summary>Drag by the top strip (XAML path; the native HTCAPTION hook is a backup).</summary>
+        [DllImport("user32.dll")]
+        private static extern bool ReleaseCapture();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+        private Microsoft.UI.Xaml.DispatcherTimer _dragTimer;
+
+        private void DragTick(object sender, object args)
+        {
+            if ((GetAsyncKeyState(0x01) & 0x8000) == 0)
+            {
+                _dragTimer?.Stop();
+                return;
+            }
+
+            GetCursorPos(out POINT now);
+            AppWindow.Move(new PointInt32(
+                _dragStartWindow.X + (now.X - _dragStartScreen.X),
+                _dragStartWindow.Y + (now.Y - _dragStartScreen.Y)));
+        }
+
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int key);
+        private void HookTitleDrag()
+        {
+            RootGrid.PointerPressed += (sender, args) =>
+            {
+                var point = args.GetCurrentPoint(RootGrid);
+                Console.WriteLine("main press y=" + point.Position.Y + " left=" + point.Properties.IsLeftButtonPressed + " src=" + (args.OriginalSource == null ? "null" : args.OriginalSource.GetType().Name));
+                if (!point.Properties.IsLeftButtonPressed)
+                {
+                    return;
+                }
+
+                IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                double limit = 46 * Dpi.ScaleFor(hwnd);
+                if (point.Position.Y > limit)
+                {
+                    return;
+                }
+
+                if (args.OriginalSource is Button || args.OriginalSource is CheckBox)
+                {
+                    return;
+                }
+
+                _dragging = true;
+                GetCursorPos(out _dragStartScreen);
+                _dragStartWindow = AppWindow.Position;
+                Console.WriteLine("title drag start");
+                _dragStartScreen = new POINT();
+                GetCursorPos(out _dragStartScreen);
+                _dragStartWindow = AppWindow.Position;
+
+                // Poll the cursor instead of relying on PointerMoved: on this window
+                // WinUI drops the move events once the pointer is captured.
+                _dragTimer ??= new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+                _dragTimer.Tick += DragTick;
+                _dragTimer.Start();
+            };
+
+            RootGrid.PointerMoved += (sender, args) =>
+            {
+                if (!_dragging)
+                {
+                    return;
+                }
+
+                GetCursorPos(out POINT now);
+                AppWindow.Move(new PointInt32(
+                    _dragStartWindow.X + (now.X - _dragStartScreen.X),
+                _dragStartWindow.Y + (now.Y - _dragStartScreen.Y)));
+            };
+
+            RootGrid.PointerReleased += (sender, args) =>
+            {
+                if (_dragging)
+                {
+                    _dragging = false;
+                    RootGrid.ReleasePointerCapture(args.Pointer);
+                    Console.WriteLine("title drag end");
+                }
+            };
+        }
         private void HandleHotkey()
         {
             try
@@ -1580,6 +1512,8 @@ namespace DeskBoxToDo.WinUI
         private static extern IntPtr SetFocus(IntPtr hwnd);
         private TrayIcon _tray;
 
+        private NativeDragHook _dragHook;
+
         private bool _hookInstalled;
 
         private void VerifyWndProcHook()
@@ -1605,7 +1539,7 @@ namespace DeskBoxToDo.WinUI
         [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
         private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
 
-        private void InstallCursorHookOnce()
+        private void InstallTrayAndHotkeyOnce()
         {
             if (_hookInstalled)
             {
@@ -1615,7 +1549,6 @@ namespace DeskBoxToDo.WinUI
             _hookInstalled = true;
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             ApplyFrameless(hwnd);
-            InstallCursorHook(hwnd);
             _hotkeyRegistered = RegisterHotKey(hwnd, HotkeyId, _hotkeyModifiers, _hotkeyKey);
             Console.WriteLine("hotkey registered: " + _hotkeyRegistered);
 
