@@ -1,4 +1,4 @@
-name: build
+﻿name: build
 
 on:
   push:
@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   windows:
+    # 1.x 的 WinForms 构建；2.x (WinUI) 由本地 publish-winui.ps1 出包，这里跳过
+    if: ${{ !startsWith(github.ref_name, 'v2.') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
