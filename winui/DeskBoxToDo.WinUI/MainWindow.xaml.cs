@@ -174,6 +174,10 @@ namespace DeskBoxToDo.WinUI
                 InstallCursorHookOnce();
             };
             boot.Start();
+
+            var hookWatchdog = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            hookWatchdog.Tick += (sender, args) => VerifyWndProcHook();
+            hookWatchdog.Start();
             // 缩放改为 DeskBox 同款手动实现（MainWindow.Resize.cs）
 
             int borderColor = unchecked((int)0xFFFFFFFE);
@@ -246,6 +250,7 @@ namespace DeskBoxToDo.WinUI
 
                 if (message == WmHotkey)
                 {
+                    Console.WriteLine("WM_HOTKEY received");
                     FocusQuickAdd();
                     return IntPtr.Zero;
                 }
@@ -1261,6 +1266,8 @@ namespace DeskBoxToDo.WinUI
         private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
 
         private const int HotkeyId = 0xB1D0;
+        private bool _hotkeyRegistered;
+
         private uint _hotkeyModifiers = 0x0001;
         private uint _hotkeyKey = 0x51;
         private const uint WmHotkey = 0x0312;
@@ -1271,12 +1278,40 @@ namespace DeskBoxToDo.WinUI
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool UnregisterHotKey(IntPtr hwnd, int id);
 
+        /// <summary>Bringing a window forward can be refused; attach to the foreground thread first.</summary>
+        private void ForceForeground(IntPtr hwnd)
+        {
+            try
+            {
+                IntPtr foreground = GetForegroundWindow();
+                uint foregroundThread = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, out _);
+                uint myThread = GetCurrentThreadId();
+                bool attached = foregroundThread != 0 &&
+                    foregroundThread != myThread &&
+                    AttachThreadInput(foregroundThread, myThread, true);
+
+                ShowWindow(hwnd, 9); // SW_RESTORE
+                BringWindowToTop(hwnd);
+                SetForegroundWindow(hwnd);
+                SetFocus(hwnd);
+
+                if (attached)
+                {
+                    AttachThreadInput(foregroundThread, myThread, false);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("foreground failed: " + ex.Message);
+            }
+        }
+
         private void ShowFromTray()
         {
             try
             {
                 var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-                SetForegroundWindow(hwnd);
+                ForceForeground(hwnd);
                 Activate();
             }
             catch (Exception ex)
@@ -1285,13 +1320,51 @@ namespace DeskBoxToDo.WinUI
             }
         }
 
+        private void ShowHotkeyNotice(string message)
+        {
+            try
+            {
+                var notice = new ReminderWindow("热键提示", message);
+                notice.Activate();
+                var timer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
+                timer.Tick += (sender, args) =>
+                {
+                    timer.Stop();
+                    notice.Close();
+                };
+                timer.Start();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("hotkey notice failed: " + ex.Message);
+            }
+        }
+        private void FlashQuickAddBorder()
+        {
+            try
+            {
+                QuickAddBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 127, 178, 255));
+                var timer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+                timer.Tick += (sender, args) =>
+                {
+                    timer.Stop();
+                    QuickAddBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(0, 127, 178, 255));
+                };
+                timer.Start();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("flash failed: " + ex.Message);
+            }
+        }
         private void FocusQuickAdd()
         {
             try
             {
                 var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-                SetForegroundWindow(hwnd);
+                ForceForeground(hwnd);
                 QuickAddBox.Focus(FocusState.Programmatic);
+                FlashQuickAddBorder();
             }
             catch (Exception ex)
             {
@@ -1301,9 +1374,53 @@ namespace DeskBoxToDo.WinUI
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hwnd);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool AttachThreadInput(uint attach, uint attachTo, bool doAttach);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool BringWindowToTop(IntPtr hwnd);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hwnd, int command);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr SetFocus(IntPtr hwnd);
         private TrayIcon _tray;
 
         private bool _hookInstalled;
+
+        private void VerifyWndProcHook()
+        {
+            try
+            {
+                IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                IntPtr current = GetWindowLongPtr(hwnd, -4);
+                IntPtr ours = System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(_wndProc);
+                if (current != ours)
+                {
+                    _oldWndProc = current;
+                    SetWindowLongPtr(hwnd, -4, ours);
+                    Console.WriteLine("wndproc hook reinstalled");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("verify hook failed: " + ex.Message);
+            }
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+        private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
 
         private void InstallCursorHookOnce()
         {
@@ -1316,7 +1433,20 @@ namespace DeskBoxToDo.WinUI
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             ApplyFrameless(hwnd);
             InstallCursorHook(hwnd);
-            Console.WriteLine("hotkey registered: " + RegisterHotKey(hwnd, HotkeyId, _hotkeyModifiers, _hotkeyKey));
+            _hotkeyRegistered = RegisterHotKey(hwnd, HotkeyId, _hotkeyModifiers, _hotkeyKey);
+            Console.WriteLine("hotkey registered: " + _hotkeyRegistered);
+
+            if (!_hotkeyRegistered)
+            {
+                // Alt+Q may be taken (older DeskBoxToDo 1.x uses it too). Fall back once.
+                _hotkeyModifiers = 0x0003; // Ctrl + Alt
+                _hotkeyKey = 0x51;         // Q
+                _hotkeyRegistered = RegisterHotKey(hwnd, HotkeyId, _hotkeyModifiers, _hotkeyKey);
+                Console.WriteLine("hotkey fallback Ctrl+Alt+Q: " + _hotkeyRegistered);
+                ShowHotkeyNotice(_hotkeyRegistered
+                    ? "Alt+Q 已被其它程序占用（可能是 DeskBoxToDo 1.x），已临时改用 Ctrl+Alt+Q。可在「设置」里换回来。"
+                    : "全局热键被其它程序占用，请在「设置」里换一个组合。");
+            }
 
             if (_tray == null)
             {
