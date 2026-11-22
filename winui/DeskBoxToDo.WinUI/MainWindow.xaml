@@ -234,22 +234,19 @@
             </Grid>
         </Grid>
 
-        <!-- 手动缩放热区（不进系统模态循环，玻璃不会变黑）；Tag = 位掩码 1左 2右 4上 8下 -->
-        <Border x:Name="ResizeRight" Tag="2" Width="6" HorizontalAlignment="Right" Background="Transparent"
-                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased" PointerEntered="OnResizeEntered" PointerExited="OnResizeExited" />
-        <Border x:Name="ResizeLeft" Tag="1" Width="6" HorizontalAlignment="Left" Background="Transparent"
-                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased" PointerEntered="OnResizeEntered" PointerExited="OnResizeExited" />
-        <Border x:Name="ResizeTop" Tag="4" Height="6" VerticalAlignment="Top" Background="Transparent"
-                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased" PointerEntered="OnResizeEntered" PointerExited="OnResizeExited" />
-        <Border x:Name="ResizeBottom" Tag="8" Height="6" VerticalAlignment="Bottom" Background="Transparent"
-                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased" PointerEntered="OnResizeEntered" PointerExited="OnResizeExited" />
-        <Border x:Name="CornerTopLeft" Tag="5" Width="9" Height="9" HorizontalAlignment="Left" VerticalAlignment="Top"
-                Background="Transparent" PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased" PointerEntered="OnResizeEntered" PointerExited="OnResizeExited" />
-        <Border x:Name="CornerTopRight" Tag="6" Width="9" Height="9" HorizontalAlignment="Right" VerticalAlignment="Top"
-                Background="Transparent" PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased" PointerEntered="OnResizeEntered" PointerExited="OnResizeExited" />
-        <Border x:Name="CornerBottomLeft" Tag="9" Width="9" Height="9" HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                Background="Transparent" PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased" PointerEntered="OnResizeEntered" PointerExited="OnResizeExited" />
-        <Border x:Name="CornerBottomRight" Tag="10" Width="9" Height="9" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                Background="Transparent" PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved" PointerReleased="OnResizeReleased" PointerEntered="OnResizeEntered" PointerExited="OnResizeExited" />
+        <!-- DeskBox 同款：XAML 里的缩放热区 + 对齐辅助线（手动算尺寸，不进系统模态循环） -->
+        <Border x:Name="ResizeLeft" Tag="Left" Width="7" HorizontalAlignment="Left" Background="Transparent" />
+        <Border x:Name="ResizeRight" Tag="Right" Width="7" HorizontalAlignment="Right" Background="Transparent" />
+        <Border x:Name="ResizeTop" Tag="Top" Height="7" VerticalAlignment="Top" Background="Transparent" />
+        <Border x:Name="ResizeBottom" Tag="Bottom" Height="7" VerticalAlignment="Bottom" Background="Transparent" />
+        <Border x:Name="ResizeTopLeft" Tag="Left Top" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent" />
+        <Border x:Name="ResizeTopRight" Tag="Right Top" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Top" Background="Transparent" />
+        <Border x:Name="ResizeBottomLeft" Tag="Left Bottom" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Bottom" Background="Transparent" />
+        <Border x:Name="ResizeBottomRight" Tag="Right Bottom" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom" Background="Transparent" />
+
+        <Rectangle x:Name="SnapGuideVertical" Width="1" HorizontalAlignment="Left" Fill="#7FB2FF"
+                   IsHitTestVisible="False" Visibility="Collapsed" />
+        <Rectangle x:Name="SnapGuideHorizontal" Height="1" VerticalAlignment="Top" Fill="#7FB2FF"
+                   IsHitTestVisible="False" Visibility="Collapsed" />
     </Grid>
 </Window>

@@ -12,6 +12,11 @@ namespace DeskBoxToDo.WinUI
         /// <summary>mica = 拖动最稳；acrylic = 更通透但拖动时会闪。</summary>
         public string Material { get; set; } = "acrylic";
 
+        /// <summary>Last window size (physical px), restored on next launch.</summary>
+        public int Width { get; set; } = 420;
+
+        public int Height { get; set; } = 560;
+
         private static string FilePath =>
             Path.Combine(TodoStore.DataRoot, "winui-settings.json");
 

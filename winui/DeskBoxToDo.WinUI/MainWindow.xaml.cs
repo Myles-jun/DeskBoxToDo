@@ -44,7 +44,7 @@ namespace DeskBoxToDo.WinUI
             ConfigureWindow();
             ApplyAcrylic();
             HookDrag();
-            HookEdgeResize();
+            HookResizeBorders();
             BuildDetailPickers();
 
             TodoList.ItemsSource = _visible;
@@ -144,7 +144,7 @@ namespace DeskBoxToDo.WinUI
             appWindow.TitleBar.ButtonInactiveForegroundColor = Colors.Transparent;
             appWindow.TitleBar.ButtonHoverBackgroundColor = Color.FromArgb(40, 255, 255, 255);
 
-            appWindow.Resize(new SizeInt32(420, 560));
+            appWindow.Resize(new SizeInt32(_settings.Width, _settings.Height));
             appWindow.Move(new PointInt32(980, 380));
 
             ApplyClassBackground(hwnd);
@@ -159,7 +159,7 @@ namespace DeskBoxToDo.WinUI
                 InstallCursorHookOnce();
             };
             boot.Start();
-            SetupNonClientRegions();
+            // 缩放改为 DeskBox 同款手动实现（MainWindow.Resize.cs）
 
             int borderColor = unchecked((int)0xFFFFFFFE);
             DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
@@ -287,6 +287,30 @@ namespace DeskBoxToDo.WinUI
         /// can flash black at the trailing edge. Painting the tint solid for those
         /// few hundred milliseconds hides it completely.
         /// </summary>
+        /// <summary>
+        /// During a drag/resize gesture the backdrop is dropped to a plain tint:
+        /// it keeps the gesture at full frame rate and hides any compositor gap.
+        /// </summary>
+        private void SimplifyBackdropForInteraction(bool simplify)
+        {
+            try
+            {
+                if (simplify)
+                {
+                    SetTintOpaque(true);
+                }
+                else
+                {
+                    SetTintOpaque(false);
+                    ApplyBrightness();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("simplify backdrop failed: " + ex.Message);
+            }
+        }
+
         private void SetTintOpaque(bool opaque)
         {
             try
@@ -579,6 +603,7 @@ namespace DeskBoxToDo.WinUI
                 }
 
                 _dragging = true;
+                SimplifyBackdropForInteraction(true);
                 GetCursorPos(out _dragStartScreen);
                 _dragStartWindow = AppWindow.Position;
                 HeaderBar.CapturePointer(args.Pointer);
@@ -603,6 +628,7 @@ namespace DeskBoxToDo.WinUI
                 {
                     _dragging = false;
                     HeaderBar.ReleasePointerCapture(args.Pointer);
+                    SimplifyBackdropForInteraction(false);
                 }
             };
         }
