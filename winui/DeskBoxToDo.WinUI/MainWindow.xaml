@@ -250,5 +250,6 @@
                    IsHitTestVisible="False" Visibility="Collapsed" />
         <Rectangle x:Name="SnapGuideHorizontal" Height="1" VerticalAlignment="Top" Fill="#7FB2FF"
                    IsHitTestVisible="False" Visibility="Collapsed" />
+
     </Grid>
 </Window>

@@ -51,6 +51,14 @@ namespace DeskBoxToDo.WinUI
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(HeaderBar);
             Console.WriteLine("titlebar host set");
+            var clipTimer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+            clipTimer.Tick += (sender, args) =>
+            {
+                clipTimer.Stop();
+                IntPtr clipHwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                ClipTopLine(clipHwnd);
+            };
+            clipTimer.Start();
             _dragHook = NativeDragHook.Install(this, 46);
             Console.WriteLine("main drag hook ready");
             StartReminderTimer();
@@ -210,6 +218,7 @@ namespace DeskBoxToDo.WinUI
             {
                 boot.Stop();
                 InstallTrayAndHotkeyOnce();
+            StartAutoUpdateCheck();
             };
             boot.Start();
 
@@ -333,7 +342,7 @@ namespace DeskBoxToDo.WinUI
         private void ApplyFrameless(IntPtr hwnd)
         {
             int style = GetWindowLong(hwnd, -16);
-            style &= ~(0x00C00000 | 0x00040000 | 0x00080000 | 0x00020000 | 0x00010000);
+            style &= ~(0x00C00000 | 0x00040000 | 0x00080000 | 0x00020000 | 0x00010000); // CAPTION|THICKFRAME|SYSMENU|MIN|MAX
             SetWindowLong(hwnd, -16, style);
 
             int ex = GetWindowLong(hwnd, -20);
@@ -1267,6 +1276,56 @@ namespace DeskBoxToDo.WinUI
 
         private bool _alwaysOnTop = true;
 
+        private Microsoft.UI.Xaml.DispatcherTimer _autoUpdateTimer;
+
+        private void StartAutoUpdateCheck()
+        {
+            _autoUpdateTimer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromHours(6) };
+            _autoUpdateTimer.Tick += (sender, args) => CheckForUpdatesAsync(manual: false);
+            _autoUpdateTimer.Start();
+
+            var first = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+            first.Tick += (sender, args) =>
+            {
+                first.Stop();
+                CheckForUpdatesAsync(manual: false);
+            };
+            first.Start();
+            Console.WriteLine("auto update check scheduled");
+        }
+        private DateTimeOffset _lastUpdateCheck = DateTimeOffset.MinValue;
+
+        private async void CheckForUpdatesAsync(bool manual)
+        {
+            try
+            {
+                Console.WriteLine("update check start (manual=" + manual + ")");
+                UpdateChecker.Result result = await UpdateChecker.CheckAsync();
+                _lastUpdateCheck = DateTimeOffset.Now;
+
+                if (result.HasUpdate)
+                {
+                    Console.WriteLine("update available: " + result.LatestTag + " (current " + result.CurrentVersion + ")");
+                    ShowHotkeyNotice("发现新版本 " + result.LatestTag + "（当前 " + result.CurrentVersion + "）\n" + result.PageUrl);
+                }
+                else
+                {
+                    Console.WriteLine("update check: up to date (" + result.CurrentVersion + ", latest " + result.LatestTag + ")");
+                    if (manual)
+                    {
+                        ShowHotkeyNotice("已是最新版本（" + result.CurrentVersion + "）");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("update check failed: " + ex.Message);
+                if (manual)
+                {
+                    ShowHotkeyNotice("检查更新失败：" + ex.Message);
+                }
+            }
+        }
         private void HandleTrayCommand(int command)
         {
             switch (command)
@@ -1280,6 +1339,9 @@ namespace DeskBoxToDo.WinUI
                 case TrayIcon.CommandSettings:
                     ShowFromTray();
                     OpenSettingsWindow();
+                    break;
+                case TrayIcon.CommandCheckUpdate:
+                    CheckForUpdatesAsync(manual: true);
                     break;
                 case TrayIcon.CommandHelp:
                     ShowFromTray();
@@ -1525,6 +1587,44 @@ namespace DeskBoxToDo.WinUI
 
         private bool _hookInstalled;
 
+        /// <summary>
+        /// DWM paints a 1px dark border along the top of borderless windows; clip it
+        /// away with a window region so the glass starts at the very first row.
+        /// </summary>
+        private void ClipTopLine(IntPtr hwnd)
+        {
+            try
+            {
+                if (!GetWindowRect(hwnd, out RECT rect))
+                {
+                    return;
+                }
+
+                int width = rect.Right - rect.Left;
+                int height = rect.Bottom - rect.Top;
+                IntPtr region = CreateRectRgn(0, 1, width, height);
+                if (SetWindowRgn(hwnd, region, true) == 0)
+                {
+                    DeleteObject(region);
+                }
+
+                Console.WriteLine("top line clipped " + width + "x" + height);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("clip top line failed: " + ex.Message);
+            }
+        }
+
+
+        [DllImport("gdi32.dll")]
+        private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+        [DllImport("gdi32.dll")]
+        private static extern bool DeleteObject(IntPtr obj);
+
+        [DllImport("user32.dll")]
+        private static extern int SetWindowRgn(IntPtr hwnd, IntPtr region, bool redraw);
         private void VerifyWndProcHook()
         {
             // The old WndProc hook is gone; dragging now goes through SetTitleBar.

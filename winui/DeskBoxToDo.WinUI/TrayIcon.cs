@@ -15,6 +15,7 @@ namespace DeskBoxToDo.WinUI
         public const int CommandDesktopLayer = 2;
         public const int CommandSettings = 3;
         public const int CommandHelp = 4;
+        public const int CommandCheckUpdate = 6;
         public const int CommandExit = 5;
 
         private const uint NimAdd = 0;
@@ -57,6 +58,7 @@ namespace DeskBoxToDo.WinUI
             AppendMenu(menu, MfSeparator, 0, null);
             AppendMenu(menu, MfString, CommandSettings, "设置…");
             AppendMenu(menu, MfString, CommandHelp, "使用帮助");
+            AppendMenu(menu, MfString, CommandCheckUpdate, "检查更新…");
             AppendMenu(menu, MfSeparator, 0, null);
             AppendMenu(menu, MfString, CommandExit, "退出程序");
 
