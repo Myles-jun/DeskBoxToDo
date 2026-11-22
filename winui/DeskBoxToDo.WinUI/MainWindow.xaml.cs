@@ -1018,7 +1018,16 @@ namespace DeskBoxToDo.WinUI
         private void OpenConfirmWindow(string raw)
         {
             TodoDraft draft = TodoParser.Parse(raw, AppConfig.Load(), DateTimeOffset.Now);
-            var window = new ConfirmWindow(draft, null);
+            ConfirmWindow window;
+            try
+            {
+                window = new ConfirmWindow(draft, null);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("confirm create failed: " + ex);
+                return;
+            }
             window.Confirmed += (sender, result) =>
             {
                 TodoRepo.Save(
@@ -1518,22 +1527,7 @@ namespace DeskBoxToDo.WinUI
 
         private void VerifyWndProcHook()
         {
-            try
-            {
-                IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-                IntPtr current = GetWindowLongPtr(hwnd, -4);
-                IntPtr ours = System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(_wndProc);
-                if (current != ours)
-                {
-                    _oldWndProc = current;
-                    SetWindowLongPtr(hwnd, -4, ours);
-                    Console.WriteLine("wndproc hook reinstalled");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("verify hook failed: " + ex.Message);
-            }
+            // The old WndProc hook is gone; dragging now goes through SetTitleBar.
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]

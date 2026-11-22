@@ -53,7 +53,9 @@ namespace DeskBoxToDo.WinUI
             ImportantSwitch.IsOn = draft.Important;
             StepsBox.Text = string.Join("\r\n", draft.Steps ?? new List<string>());
 
-            HookHeaderDrag();
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(HeaderRow);
+            Console.WriteLine("confirm titlebar host set");
             TitleBox.Focus(FocusState.Programmatic);
         }
 
