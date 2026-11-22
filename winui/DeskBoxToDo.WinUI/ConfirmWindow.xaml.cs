@@ -50,7 +50,7 @@ namespace DeskBoxToDo.WinUI
             TimeBox.Time = due.ToLocalTime().TimeOfDay;
 
             RepeatBox.SelectedIndex = Math.Max(0, Array.FindIndex(Repeats, entry => entry.Key == (draft.RecurrenceMode ?? "none")));
-            string color = string.IsNullOrEmpty(draft.ColorMarker) ? "白" : draft.ColorMarker;
+            string color = draft.ColorMarker ?? "";
             ColorBox.SelectedIndex = Math.Max(0, TodoItem.Palette.FindIndex(entry => entry.Key == color));
             ImportantSwitch.IsOn = draft.Important;
             StepsBox.Text = string.Join("\r\n", draft.Steps ?? new List<string>());
@@ -126,7 +126,7 @@ namespace DeskBoxToDo.WinUI
 
             foreach (var color in TodoItem.Palette)
             {
-                ColorBox.Items.Add(new ComboBoxItem { Content = color.Key, Tag = color.Key });
+                ColorBox.Items.Add(new ComboBoxItem { Content = TodoItem.LabelFor(color.Key), Tag = color.Key });
             }
         }
 
@@ -168,7 +168,7 @@ namespace DeskBoxToDo.WinUI
             }
 
             string repeat = (RepeatBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "none";
-            string color = (ColorBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "白";
+            string color = (ColorBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
             var steps = (StepsBox.Text ?? "").Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
             Confirmed?.Invoke(this, (title, due, repeat, color, ImportantSwitch.IsOn, string.Join("\r\n", steps)));

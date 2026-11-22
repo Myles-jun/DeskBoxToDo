@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Runtime.InteropServices;
 
@@ -12,7 +12,10 @@ namespace DeskBoxToDo.WinUI
     {
         public const int CallbackMessage = 0x0400 + 1; // WM_USER + 1
         public const int CommandShow = 1;
-        public const int CommandExit = 2;
+        public const int CommandDesktopLayer = 2;
+        public const int CommandSettings = 3;
+        public const int CommandHelp = 4;
+        public const int CommandExit = 5;
 
         private const uint NimAdd = 0;
         private const uint NimModify = 1;
@@ -22,6 +25,7 @@ namespace DeskBoxToDo.WinUI
         private const uint NifTip = 0x04;
         private const uint MfString = 0x0000;
         private const uint MfSeparator = 0x0800;
+        private const uint MfChecked = 0x0008;
         private const uint TpmRightButton = 0x0002;
         private const uint TpmReturnCmd = 0x0100;
         private const uint ImageIcon = 1;
@@ -45,10 +49,14 @@ namespace DeskBoxToDo.WinUI
         }
 
         /// <summary>Returns the chosen command id, or 0 when the menu was dismissed.</summary>
-        public int ShowMenu()
+        public int ShowMenu(bool desktopLayer)
         {
             IntPtr menu = CreatePopupMenu();
-            AppendMenu(menu, MfString, CommandShow, "显示待办");
+            AppendMenu(menu, MfString, CommandShow, "打开待办");
+            AppendMenu(menu, desktopLayer ? MfChecked : MfString, CommandDesktopLayer, "固定在桌面（置顶）");
+            AppendMenu(menu, MfSeparator, 0, null);
+            AppendMenu(menu, MfString, CommandSettings, "设置…");
+            AppendMenu(menu, MfString, CommandHelp, "使用帮助");
             AppendMenu(menu, MfSeparator, 0, null);
             AppendMenu(menu, MfString, CommandExit, "退出程序");
 

@@ -233,15 +233,8 @@ namespace DeskBoxToDo.WinUI
                         }
                         else
                         {
-                            int command = _tray?.ShowMenu() ?? 0;
-                            if (command == TrayIcon.CommandShow)
-                            {
-                                ShowFromTray();
-                            }
-                            else if (command == TrayIcon.CommandExit)
-                            {
-                                Application.Current.Exit();
-                            }
+                            int command = _tray?.ShowMenu(_alwaysOnTop) ?? 0;
+                            HandleTrayCommand(command);
                         }
                     }
 
@@ -251,7 +244,7 @@ namespace DeskBoxToDo.WinUI
                 if (message == WmHotkey)
                 {
                     Console.WriteLine("WM_HOTKEY received");
-                    FocusQuickAdd();
+                    HandleHotkey();
                     return IntPtr.Zero;
                 }
 
@@ -873,7 +866,7 @@ namespace DeskBoxToDo.WinUI
                     UpdateColorRow();
                     ApplyFilter();
                 };
-                ToolTipService.SetToolTip(dot, entry.Key);
+                ToolTipService.SetToolTip(dot, TodoItem.LabelFor(entry.Key));
                 ColorRow.Children.Add(dot);
             }
         }
@@ -1151,7 +1144,7 @@ namespace DeskBoxToDo.WinUI
 
             foreach (var color in TodoItem.Palette)
             {
-                ColorBox.Items.Add(new ComboBoxItem { Content = color.Key, Tag = color.Key });
+                ColorBox.Items.Add(new ComboBoxItem { Content = TodoItem.LabelFor(color.Key), Tag = color.Key });
             }
 
             RepeatBox.SelectedIndex = 0;
@@ -1172,7 +1165,7 @@ namespace DeskBoxToDo.WinUI
             string mode = item?.RecurrenceMode ?? "none";
             RepeatBox.SelectedIndex = Math.Max(0, Array.FindIndex(Repeats, entry => entry.Key == mode));
 
-            string color = item?.ColorMarker ?? "白";
+            string color = item?.ColorMarker ?? "";
             ColorBox.SelectedIndex = Math.Max(0, TodoItem.Palette.FindIndex(entry => entry.Key == color));
 
             var root = TodoRepo.ReadRoot();
@@ -1238,7 +1231,7 @@ namespace DeskBoxToDo.WinUI
             }
 
             string repeat = (RepeatBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "none";
-            string color = (ColorBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "白";
+            string color = (ColorBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
             var steps = (StepsBox.Text ?? "").Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
             TodoRepo.Save(
@@ -1306,6 +1299,51 @@ namespace DeskBoxToDo.WinUI
             }
         }
 
+        private bool _alwaysOnTop = true;
+
+        private void HandleTrayCommand(int command)
+        {
+            switch (command)
+            {
+                case TrayIcon.CommandShow:
+                    ShowFromTray();
+                    break;
+                case TrayIcon.CommandDesktopLayer:
+                    ToggleAlwaysOnTop();
+                    break;
+                case TrayIcon.CommandSettings:
+                    ShowFromTray();
+                    OpenSettingsWindow();
+                    break;
+                case TrayIcon.CommandHelp:
+                    ShowFromTray();
+                    ShowHotkeyNotice("用法：在任何软件里选中文字 → 按热键 → 在确认卡片里改两笔 → 加入待办。");
+                    break;
+                case TrayIcon.CommandExit:
+                    Application.Current.Exit();
+                    break;
+            }
+        }
+
+        private void ToggleAlwaysOnTop()
+        {
+            _alwaysOnTop = !_alwaysOnTop;
+            try
+            {
+                IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                WindowId id = Win32Interop.GetWindowIdFromWindow(hwnd);
+                if (AppWindow.GetFromWindowId(id).Presenter is OverlappedPresenter presenter)
+                {
+                    presenter.IsAlwaysOnTop = _alwaysOnTop;
+                }
+
+                Console.WriteLine("always on top: " + _alwaysOnTop);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("toggle topmost failed: " + ex.Message);
+            }
+        }
         private void ShowFromTray()
         {
             try
@@ -1355,6 +1393,40 @@ namespace DeskBoxToDo.WinUI
             catch (Exception ex)
             {
                 Console.WriteLine("flash failed: " + ex.Message);
+            }
+        }
+        /// <summary>
+        /// 1.x behaviour: copy whatever is selected in the front window, then show
+        /// the confirm card prefilled with it; fall back to focusing the input box.
+        /// </summary>
+        private void HandleHotkey()
+        {
+            try
+            {
+                IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                Console.WriteLine("hotkey: fg=" + GetForegroundWindow() + " ours=" + hwnd);
+                string selected = SelectionCapture.CaptureFromForeground(hwnd);
+                ForceForeground(hwnd);
+
+                if (!string.IsNullOrWhiteSpace(selected))
+                {
+                    string trimmed = selected.Trim();
+                    if (trimmed.Length > 400)
+                    {
+                        trimmed = trimmed.Substring(0, 400);
+                    }
+
+                    Console.WriteLine("selection captured: " + trimmed.Length + " chars");
+                    OpenConfirmWindow(trimmed);
+                    return;
+                }
+
+                FocusQuickAdd();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("hotkey handling failed: " + ex.Message);
+                FocusQuickAdd();
             }
         }
         private void FocusQuickAdd()

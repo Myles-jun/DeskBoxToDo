@@ -29,36 +29,84 @@ namespace DeskBoxToDo.WinUI
         public static readonly System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>> Palette =
             new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>>
             {
-                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("白", Windows.UI.Color.FromArgb(255, 210, 214, 222)),
-                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("红", Windows.UI.Color.FromArgb(255, 226, 106, 96)),
-                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("橙", Windows.UI.Color.FromArgb(255, 240, 158, 84)),
-                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("黄", Windows.UI.Color.FromArgb(255, 236, 200, 90)),
-                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("绿", Windows.UI.Color.FromArgb(255, 94, 196, 138)),
-                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("青", Windows.UI.Color.FromArgb(255, 82, 190, 204)),
-                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("蓝", Windows.UI.Color.FromArgb(255, 96, 140, 232)),
-                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("紫", Windows.UI.Color.FromArgb(255, 152, 118, 222)),
-                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("粉", Windows.UI.Color.FromArgb(255, 226, 130, 178))
+                // 与 1.x 完全一致的色标（英文 key，存进 JSON 的也是这些）
+                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("red", Windows.UI.Color.FromArgb(255, 227, 77, 77)),
+                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("orange", Windows.UI.Color.FromArgb(255, 240, 138, 60)),
+                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("yellow", Windows.UI.Color.FromArgb(255, 242, 201, 76)),
+                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("green", Windows.UI.Color.FromArgb(255, 76, 175, 109)),
+                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("blue", Windows.UI.Color.FromArgb(255, 77, 143, 227)),
+                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("purple", Windows.UI.Color.FromArgb(255, 155, 107, 232)),
+                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("teal", Windows.UI.Color.FromArgb(255, 45, 183, 163)),
+                new System.Collections.Generic.KeyValuePair<string, Windows.UI.Color>("pink", Windows.UI.Color.FromArgb(255, 230, 106, 162))
             };
+
+        /// <summary>Chinese labels for UI, keyed by the stored English marker.</summary>
+        public static string LabelFor(string marker)
+        {
+            switch ((marker ?? "").Trim().ToLowerInvariant())
+            {
+                case "red": return "红";
+                case "orange": return "橙";
+                case "yellow": return "黄";
+                case "green": return "绿";
+                case "blue": return "蓝";
+                case "purple": return "紫";
+                case "teal": return "青";
+                case "pink": return "粉";
+                default: return "无";
+            }
+        }
+
+        public static string MarkerForLabel(string label)
+        {
+            switch (label)
+            {
+                case "红": return "red";
+                case "橙": return "orange";
+                case "黄": return "yellow";
+                case "绿": return "green";
+                case "蓝": return "blue";
+                case "紫": return "purple";
+                case "青": return "teal";
+                case "粉": return "pink";
+                default: return "";
+            }
+        }
 
         public static Windows.UI.Color ColorFor(string marker)
         {
-            if (!string.IsNullOrEmpty(marker))
+            string key = (marker ?? "").Trim();
+            if (key.Length > 0)
             {
+                string lower = key.ToLowerInvariant();
                 foreach (var entry in Palette)
                 {
-                    if (entry.Key == marker)
+                    if (entry.Key == lower)
                     {
                         return entry.Value;
                     }
                 }
 
+                // 兼容中文标签与 #RRGGBB
+                string mapped = MarkerForLabel(key);
+                if (mapped.Length > 0)
+                {
+                    foreach (var entry in Palette)
+                    {
+                        if (entry.Key == mapped)
+                        {
+                            return entry.Value;
+                        }
+                    }
+                }
+
                 try
                 {
-                    if (marker.StartsWith("#") && marker.Length >= 7)
+                    if (key.StartsWith("#") && key.Length >= 7)
                     {
-                        byte r = Convert.ToByte(marker.Substring(1, 2), 16);
-                        byte g = Convert.ToByte(marker.Substring(3, 2), 16);
-                        byte b = Convert.ToByte(marker.Substring(5, 2), 16);
+                        byte r = Convert.ToByte(key.Substring(1, 2), 16);
+                        byte g = Convert.ToByte(key.Substring(3, 2), 16);
+                        byte b = Convert.ToByte(key.Substring(5, 2), 16);
                         return Windows.UI.Color.FromArgb(255, r, g, b);
                     }
                 }
@@ -67,7 +115,7 @@ namespace DeskBoxToDo.WinUI
                 }
             }
 
-            return Windows.UI.Color.FromArgb(255, 150, 156, 168);
+            return Windows.UI.Color.FromArgb(255, 148, 154, 166);
         }
         public string Notes { get; set; } = "";
 
