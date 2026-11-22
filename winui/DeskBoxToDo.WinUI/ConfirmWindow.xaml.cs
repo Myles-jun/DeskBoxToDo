@@ -8,6 +8,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using Windows.System;
 using Windows.UI;
@@ -26,6 +27,8 @@ namespace DeskBoxToDo.WinUI
             ("none", "不重复"), ("daily", "每天"), ("weekly", "每周"),
             ("monthly", "每月"), ("weekdays", "工作日")
         };
+
+        private string _selectedColor = "";
 
         private DesktopAcrylicController _acrylic;
         private SystemBackdropConfiguration _configuration;
@@ -50,8 +53,7 @@ namespace DeskBoxToDo.WinUI
             TimeBox.Time = due.ToLocalTime().TimeOfDay;
 
             RepeatBox.SelectedIndex = Math.Max(0, Array.FindIndex(Repeats, entry => entry.Key == (draft.RecurrenceMode ?? "none")));
-            string color = draft.ColorMarker ?? "";
-            ColorBox.SelectedIndex = Math.Max(0, TodoItem.Palette.FindIndex(entry => entry.Key == color));
+            SelectColor(draft.ColorMarker ?? "");
             ImportantSwitch.IsOn = draft.Important;
             StepsBox.Text = string.Join("\r\n", draft.Steps ?? new List<string>());
 
@@ -83,13 +85,13 @@ namespace DeskBoxToDo.WinUI
             SetWindowLong(hwnd, -16, style);
             SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027);
 
-            appWindow.Resize(new SizeInt32(520, 580));
+            appWindow.Resize(new SizeInt32(560, 620));
 
             RECT work;
             SystemParametersInfo(0x0030, 0, out work, 0);
             appWindow.Move(new PointInt32(
-                work.Left + (work.Right - work.Left - 520) / 2,
-                work.Top + (work.Bottom - work.Top - 580) / 2));
+                work.Left + (work.Right - work.Left - 560) / 2,
+                work.Top + (work.Bottom - work.Top - 620) / 2));
         }
 
         private void ApplyAcrylic()
@@ -124,10 +126,7 @@ namespace DeskBoxToDo.WinUI
                 RepeatBox.Items.Add(new ComboBoxItem { Content = repeat.Label, Tag = repeat.Key });
             }
 
-            foreach (var color in TodoItem.Palette)
-            {
-                ColorBox.Items.Add(new ComboBoxItem { Content = TodoItem.LabelFor(color.Key), Tag = color.Key });
-            }
+            BuildColorSwatches();
         }
 
         private void OnTitleKeyDown(object sender, KeyRoutedEventArgs args)
@@ -150,6 +149,95 @@ namespace DeskBoxToDo.WinUI
             Close();
         }
 
+        private void BuildColorSwatches()
+        {
+            ColorSwatches.Children.Clear();
+            foreach (var entry in TodoItem.Palette)
+            {
+                var dot = new Border
+                {
+                    Width = 15,
+                    Height = 15,
+                    CornerRadius = new CornerRadius(7.5),
+                    Background = new SolidColorBrush(entry.Value),
+                    BorderThickness = new Thickness(0),
+                    Tag = entry.Key
+                };
+
+                ToolTipService.SetToolTip(dot, TodoItem.LabelFor(entry.Key));
+                dot.Tapped += (sender, args) =>
+                {
+                    if (sender is FrameworkElement element && element.Tag is string key)
+                    {
+                        SelectColor(key);
+                    }
+                };
+                ColorSwatches.Children.Add(dot);
+            }
+
+            SelectColor(_selectedColor);
+        }
+
+        private void SelectColor(string marker)
+        {
+            _selectedColor = marker ?? "";
+            foreach (var child in ColorSwatches.Children)
+            {
+                if (child is Border dot && dot.Tag is string key)
+                {
+                    dot.BorderThickness = new Thickness(key == _selectedColor ? 2 : 0);
+                    dot.BorderBrush = new SolidColorBrush(Colors.White);
+                }
+            }
+        }
+
+        private async void OnAiClick(object sender, RoutedEventArgs args)
+        {
+            AiButton.IsEnabled = false;
+            AiButton.Content = "解析中…";
+            try
+            {
+                string text = (TitleBox.Text ?? "").Trim();
+                if (text.Length == 0)
+                {
+                    return;
+                }
+
+                AiReparse.Result result = await AiReparse.ParseAsync(text);
+                if (!string.IsNullOrWhiteSpace(result.Title))
+                {
+                    TitleBox.Text = result.Title;
+                }
+
+                if (result.Due != null)
+                {
+                    DateBox.Date = result.Due.Value.ToLocalTime();
+                    TimeBox.Time = result.Due.Value.ToLocalTime().TimeOfDay;
+                }
+
+                RepeatBox.SelectedIndex = Math.Max(0,
+                    Array.FindIndex(Repeats, entry => entry.Key == result.Recurrence));
+                SelectColor(result.Color);
+                ImportantSwitch.IsOn = result.Important;
+                if (result.Steps.Length > 0)
+                {
+                    StepsBox.Text = string.Join("\r\n", result.Steps);
+                }
+
+                Console.WriteLine("ai reparse ok: " + result.Title);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("ai reparse failed: " + ex.Message);
+                StepsBox.Text = "AI 解析失败：" + ex.Message;
+            }
+            finally
+            {
+                AiButton.IsEnabled = true;
+                AiButton.Content = "AI 重解析";
+            }
+        }
+
         private void Commit()
         {
             string title = (TitleBox.Text ?? "").Trim();
@@ -168,7 +256,7 @@ namespace DeskBoxToDo.WinUI
             }
 
             string repeat = (RepeatBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "none";
-            string color = (ColorBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+            string color = _selectedColor;
             var steps = (StepsBox.Text ?? "").Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
             Confirmed?.Invoke(this, (title, due, repeat, color, ImportantSwitch.IsOn, string.Join("\r\n", steps)));

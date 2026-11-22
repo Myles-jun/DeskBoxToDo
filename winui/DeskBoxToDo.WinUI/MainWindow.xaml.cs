@@ -50,6 +50,17 @@ namespace DeskBoxToDo.WinUI
             HookResizeBorders();
             StartReminderTimer();
 
+            if (Environment.GetEnvironmentVariable("DBT_OPEN_CONFIRM") == "1")
+            {
+                var confirmProbe = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1000) };
+                confirmProbe.Tick += (sender, args) =>
+                {
+                    confirmProbe.Stop();
+                    OpenConfirmWindow("明天下午三点 交周报 重要");
+                };
+                confirmProbe.Start();
+            }
+
             if (Environment.GetEnvironmentVariable("DBT_OPEN_SETTINGS") == "1")
             {
                 var settingsProbe = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
@@ -590,8 +601,10 @@ namespace DeskBoxToDo.WinUI
 
         private void HookEdgeResize()
         {
+            Console.WriteLine("drag handlers attached");
             RootGrid.PointerPressed += (sender, args) =>
             {
+                Console.WriteLine("root pressed");
                 var point = args.GetCurrentPoint(RootGrid);
                 if (!point.Properties.IsLeftButtonPressed)
                 {
@@ -628,10 +641,18 @@ namespace DeskBoxToDo.WinUI
         }
         private void HookDrag()
         {
-            HeaderBar.PointerPressed += (sender, args) =>
+            Console.WriteLine("drag handlers attached");
+            RootGrid.PointerPressed += (sender, args) =>
             {
-                var point = args.GetCurrentPoint(HeaderBar);
+                Console.WriteLine("root pressed");
+                var point = args.GetCurrentPoint(RootGrid);
                 if (!point.Properties.IsLeftButtonPressed)
+                {
+                    return;
+                }
+
+                // Header strip only (above the tabs); buttons keep their own taps.
+                if (point.Position.Y > 46)
                 {
                     return;
                 }
@@ -642,13 +663,14 @@ namespace DeskBoxToDo.WinUI
                 }
 
                 _dragging = true;
+                Console.WriteLine("drag start");
                 SimplifyBackdropForInteraction(true);
                 GetCursorPos(out _dragStartScreen);
                 _dragStartWindow = AppWindow.Position;
-                HeaderBar.CapturePointer(args.Pointer);
+                RootGrid.CapturePointer(args.Pointer);
             };
 
-            HeaderBar.PointerMoved += (sender, args) =>
+            RootGrid.PointerMoved += (sender, args) =>
             {
                 if (!_dragging)
                 {
@@ -656,23 +678,46 @@ namespace DeskBoxToDo.WinUI
                 }
 
                 GetCursorPos(out POINT now);
-                AppWindow.Move(new PointInt32(
-                    _dragStartWindow.X + (now.X - _dragStartScreen.X),
-                    _dragStartWindow.Y + (now.Y - _dragStartScreen.Y)));
+                int targetX = _dragStartWindow.X + (now.X - _dragStartScreen.X);
+                int targetY = _dragStartWindow.Y + (now.Y - _dragStartScreen.Y);
+                Console.WriteLine("drag move " + targetX + "," + targetY);
+
+                try
+                {
+                    PointInt32 snapped = SnapDragPosition(targetX, targetY, AppWindow.Size.Width, AppWindow.Size.Height);
+                    AppWindow.Move(snapped);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("drag move failed: " + ex.Message);
+                    AppWindow.Move(new PointInt32(targetX, targetY));
+                }
             };
 
-            HeaderBar.PointerReleased += (sender, args) =>
+            RootGrid.PointerReleased += (sender, args) =>
+            {
+                if (!_dragging)
+                {
+                    return;
+                }
+
+                _dragging = false;
+                RootGrid.ReleasePointerCapture(args.Pointer);
+                SimplifyBackdropForInteraction(false);
+                ShowSnapGuides(false, 0, false, 0);
+                Console.WriteLine("drag end");
+            };
+
+            RootGrid.PointerCaptureLost += (sender, args) =>
             {
                 if (_dragging)
                 {
                     _dragging = false;
-                    HeaderBar.ReleasePointerCapture(args.Pointer);
                     SimplifyBackdropForInteraction(false);
                     ShowSnapGuides(false, 0, false, 0);
                 }
             };
         }
-
         private MicaController _mica;
 
         /// <summary>Rebuilds the backdrop for the chosen material.</summary>

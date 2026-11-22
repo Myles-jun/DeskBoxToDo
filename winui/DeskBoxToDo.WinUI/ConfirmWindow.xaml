@@ -1,4 +1,4 @@
-<Window
+﻿<Window
     x:Class="DeskBoxToDo.WinUI.ConfirmWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -57,9 +57,9 @@
             </Border>
 
             <Border Grid.Row="1" Grid.Column="1" CornerRadius="9" Background="#12FFFFFF" Padding="10,6">
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="4">
                     <TextBlock Text="颜色" FontSize="10.5" Foreground="#9AA1AF" />
-                    <ComboBox x:Name="ColorBox" HorizontalAlignment="Stretch" Background="Transparent" BorderThickness="0" />
+                    <StackPanel x:Name="ColorSwatches" Orientation="Horizontal" Spacing="4" />
                 </StackPanel>
             </Border>
         </Grid>
@@ -75,7 +75,9 @@
                  PlaceholderText="第一件事&#x0a;第二件事" />
 
         <Grid Grid.Row="5" Margin="0,12,0,0">
-            <Button x:Name="CancelButton" Content="取消" Padding="14,6" HorizontalAlignment="Left"
+            <Button x:Name="AiButton" Content="AI 重解析" Padding="14,6" HorizontalAlignment="Left"
+                    Click="OnAiClick" Background="#14FFFFFF" BorderThickness="0" CornerRadius="8" />
+            <Button x:Name="CancelButton" Content="取消" Padding="14,6" HorizontalAlignment="Center"
                     Click="OnCancelClick" Background="#14FFFFFF" BorderThickness="0" CornerRadius="8" />
             <Button x:Name="OkButton" Content="加入待办" Padding="16,6" HorizontalAlignment="Right"
                     Click="OnOkClick" Background="#3A7FB2FF" BorderThickness="0" CornerRadius="8" />
