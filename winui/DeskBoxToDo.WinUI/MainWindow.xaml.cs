@@ -203,6 +203,32 @@ namespace DeskBoxToDo.WinUI
         {
             _wndProc = (h, message, wParam, lParam) =>
             {
+                if (message == TrayIcon.CallbackMessage)
+                {
+                    long mouse = lParam.ToInt64() & 0xFFFF;
+                    if (mouse == 0x0202 || mouse == 0x0205) // WM_LBUTTONUP / WM_RBUTTONUP
+                    {
+                        if (mouse == 0x0202)
+                        {
+                            ShowFromTray();
+                        }
+                        else
+                        {
+                            int command = _tray?.ShowMenu() ?? 0;
+                            if (command == TrayIcon.CommandShow)
+                            {
+                                ShowFromTray();
+                            }
+                            else if (command == TrayIcon.CommandExit)
+                            {
+                                Application.Current.Exit();
+                            }
+                        }
+                    }
+
+                    return IntPtr.Zero;
+                }
+
                 if (message == WmHotkey)
                 {
                     FocusQuickAdd();
@@ -1089,6 +1115,20 @@ namespace DeskBoxToDo.WinUI
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool UnregisterHotKey(IntPtr hwnd, int id);
 
+        private void ShowFromTray()
+        {
+            try
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                SetForegroundWindow(hwnd);
+                Activate();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("show from tray failed: " + ex.Message);
+            }
+        }
+
         private void FocusQuickAdd()
         {
             try
@@ -1105,6 +1145,8 @@ namespace DeskBoxToDo.WinUI
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hwnd);
+        private TrayIcon _tray;
+
         private bool _hookInstalled;
 
         private void InstallCursorHookOnce()
@@ -1119,6 +1161,12 @@ namespace DeskBoxToDo.WinUI
             ApplyFrameless(hwnd);
             InstallCursorHook(hwnd);
             Console.WriteLine("hotkey registered: " + RegisterHotKey(hwnd, HotkeyId, ModAlt, VkQ));
+
+            if (_tray == null)
+            {
+                _tray = new TrayIcon();
+                _tray.Create(hwnd, "DeskBoxToDo —— 选中一句话变成待办");
+            }
 
             // WinUI re-applies the frame shortly after activation; strip it again.
             int attempts = 0;

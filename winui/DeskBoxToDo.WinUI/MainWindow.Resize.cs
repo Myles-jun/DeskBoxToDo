@@ -215,60 +215,135 @@ namespace DeskBoxToDo.WinUI
         /// <summary>Light-weight version of DeskBox's ResizeGuideOverlay: snap to monitor edges.</summary>
         private RectInt32 SnapToScreenEdges(RectInt32 proposed)
         {
-            const int SnapDistance = 12;
+            const int SnapDistance = 10;
             WorkArea working = GetWorkingArea();
             int x = proposed.X;
             int y = proposed.Y;
             int width = proposed.Width;
             int height = proposed.Height;
 
-            bool snapLeft = Math.Abs(x - working.X) <= SnapDistance;
-            bool snapRight = Math.Abs((x + width) - (working.X + working.Width)) <= SnapDistance;
-            bool snapTop = Math.Abs(y - working.Y) <= SnapDistance;
-            bool snapBottom = Math.Abs((y + height) - (working.Y + working.Height)) <= SnapDistance;
+            var verticalTargets = new List<int> { working.X, working.X + working.Width };
+            var horizontalTargets = new List<int> { working.Y, working.Y + working.Height };
+            CollectWindowSnapTargets(verticalTargets, horizontalTargets, working);
 
-            if (_resizeDirection.Contains("Left") && snapLeft)
+            bool snappedVertical = false;
+            bool snappedHorizontal = false;
+            int guideX = 0;
+            int guideY = 0;
+
+            if (_resizeDirection.Contains("Right"))
             {
-                width = (x + width) - working.X;
-                x = working.X;
+                int right = x + width;
+                foreach (int target in verticalTargets)
+                {
+                    if (Math.Abs(right - target) <= SnapDistance)
+                    {
+                        width = target - x;
+                        guideX = width - 1;
+                        snappedVertical = true;
+                        break;
+                    }
+                }
             }
-            else if (_resizeDirection.Contains("Right") && snapRight)
+            else if (_resizeDirection.Contains("Left"))
             {
-                width = (working.X + working.Width) - x;
+                foreach (int target in verticalTargets)
+                {
+                    if (Math.Abs(x - target) <= SnapDistance)
+                    {
+                        int right = x + width;
+                        x = target;
+                        width = right - target;
+                        guideX = 0;
+                        snappedVertical = true;
+                        break;
+                    }
+                }
             }
 
-            if (_resizeDirection.Contains("Top") && snapTop)
+            if (_resizeDirection.Contains("Bottom"))
             {
-                height = (y + height) - working.Y;
-                y = working.Y;
+                int bottom = y + height;
+                foreach (int target in horizontalTargets)
+                {
+                    if (Math.Abs(bottom - target) <= SnapDistance)
+                    {
+                        height = target - y;
+                        guideY = height - 1;
+                        snappedHorizontal = true;
+                        break;
+                    }
+                }
             }
-            else if (_resizeDirection.Contains("Bottom") && snapBottom)
+            else if (_resizeDirection.Contains("Top"))
             {
-                height = (working.Y + working.Height) - y;
+                foreach (int target in horizontalTargets)
+                {
+                    if (Math.Abs(y - target) <= SnapDistance)
+                    {
+                        int bottom = y + height;
+                        y = target;
+                        height = bottom - target;
+                        guideY = 0;
+                        snappedHorizontal = true;
+                        break;
+                    }
+                }
             }
 
-            ShowSnapGuides(_resizeDirection.Contains("Left") || _resizeDirection.Contains("Right"),
-                (_resizeDirection.Contains("Left") && snapLeft) || (_resizeDirection.Contains("Right") && snapRight),
-                _resizeDirection.Contains("Top") || _resizeDirection.Contains("Bottom"),
-                (_resizeDirection.Contains("Top") && snapTop) || (_resizeDirection.Contains("Bottom") && snapBottom));
-
+            ShowSnapGuides(snappedVertical, guideX, snappedHorizontal, guideY);
             return new RectInt32(x, y, Math.Max(1, width), Math.Max(1, height));
         }
 
-        private void ShowSnapGuides(bool horizontalResize, bool horizontalSnap, bool verticalResize, bool verticalSnap)
+        /// <summary>Edges of other visible windows become snap targets too.</summary>
+        private void CollectWindowSnapTargets(List<int> vertical, List<int> horizontal, WorkArea working)
+        {
+            IntPtr self = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            EnumWindows((hwnd, lParam) =>
+            {
+                if (hwnd == self || !IsWindowVisible(hwnd))
+                {
+                    return true;
+                }
+
+                if (!GetWindowRect(hwnd, out RECT rect))
+                {
+                    return true;
+                }
+
+                int width = rect.Right - rect.Left;
+                int height = rect.Bottom - rect.Top;
+                if (width < 80 || height < 80)
+                {
+                    return true;
+                }
+
+                // Skip anything that covers the whole work area (desktop, taskbar).
+                if (width >= working.Width - 4 && height >= working.Height - 4)
+                {
+                    return true;
+                }
+
+                vertical.Add(rect.Left);
+                vertical.Add(rect.Right);
+                horizontal.Add(rect.Top);
+                horizontal.Add(rect.Bottom);
+                return true;
+            }, IntPtr.Zero);
+        }
+
+        private void ShowSnapGuides(bool showVertical, int x, bool showHorizontal, int y)
         {
             if (_snapGuideVertical != null)
             {
-                _snapGuideVertical.Visibility = horizontalResize && horizontalSnap
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
+                _snapGuideVertical.Margin = new Thickness(Math.Max(0, x), 0, 0, 0);
+                _snapGuideVertical.Visibility = showVertical ? Visibility.Visible : Visibility.Collapsed;
             }
 
             if (_snapGuideHorizontal != null)
             {
-                _snapGuideHorizontal.Visibility = verticalResize && verticalSnap
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
+                _snapGuideHorizontal.Margin = new Thickness(0, Math.Max(0, y), 0, 0);
+                _snapGuideHorizontal.Visibility = showHorizontal ? Visibility.Visible : Visibility.Collapsed;
             }
         }
 
@@ -277,7 +352,7 @@ namespace DeskBoxToDo.WinUI
             _isResizing = false;
             _resizeDirection = "";
             SimplifyBackdropForInteraction(false);
-            ShowSnapGuides(false, false, false, false);
+            ShowSnapGuides(false, 0, false, 0);
 
             RectInt32 final = GetWindowBounds();
             GlassSettings settings = GlassSettings.Load();
@@ -326,6 +401,14 @@ namespace DeskBoxToDo.WinUI
 
         private const uint SwpNoZOrder = 0x0004;
         private const uint SwpNoActivate = 0x0010;
+
+        private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hwnd);
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);

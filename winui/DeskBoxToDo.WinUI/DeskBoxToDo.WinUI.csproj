@@ -26,6 +26,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="app.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- 复用 1.x 的规则解析器（纯 C#，无 WinForms 依赖） -->
     <Compile Include="..\..\src\TodoParser.cs" Link="Shared\TodoParser.cs" />
   </ItemGroup>
