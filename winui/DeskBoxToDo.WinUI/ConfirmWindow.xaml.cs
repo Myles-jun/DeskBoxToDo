@@ -85,7 +85,7 @@ namespace DeskBoxToDo.WinUI
             SetWindowLong(hwnd, -16, style);
             SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027);
 
-            appWindow.Resize(new SizeInt32(560, 620));
+            appWindow.Resize(new SizeInt32(Dpi.Px(hwnd, 560), Dpi.Px(hwnd, 620)));
 
             RECT work;
             SystemParametersInfo(0x0030, 0, out work, 0);
@@ -195,6 +195,7 @@ namespace DeskBoxToDo.WinUI
         {
             AiButton.IsEnabled = false;
             AiButton.Content = "解析中…";
+            AiStatus.Text = "正在请求 AI…";
             try
             {
                 string text = (TitleBox.Text ?? "").Trim();
@@ -224,12 +225,13 @@ namespace DeskBoxToDo.WinUI
                     StepsBox.Text = string.Join("\r\n", result.Steps);
                 }
 
+                AiStatus.Text = "AI 已更新：标题 / 时间 / 重复 / 颜色";
                 Console.WriteLine("ai reparse ok: " + result.Title);
             }
             catch (Exception ex)
             {
                 Console.WriteLine("ai reparse failed: " + ex.Message);
-                StepsBox.Text = "AI 解析失败：" + ex.Message;
+                AiStatus.Text = "AI 失败：" + ex.Message;
             }
             finally
             {

@@ -412,8 +412,9 @@ namespace DeskBoxToDo.WinUI
 
             RectInt32 final = GetWindowBounds();
             GlassSettings settings = GlassSettings.Load();
-            settings.Width = final.Width;
-            settings.Height = final.Height;
+            IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            settings.Width = Dpi.Dip(hwnd, final.Width);
+            settings.Height = Dpi.Dip(hwnd, final.Height);
             settings.Save();
             Console.WriteLine("resize end " + final.Width + "x" + final.Height);
         }

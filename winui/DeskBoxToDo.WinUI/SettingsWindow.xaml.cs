@@ -87,7 +87,7 @@ namespace DeskBoxToDo.WinUI
             SetWindowLong(hwnd, -16, style);
             SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027);
 
-            appWindow.Resize(new SizeInt32(440, 420));
+            appWindow.Resize(new SizeInt32(Dpi.Px(hwnd, 440), Dpi.Px(hwnd, 420)));
 
             RECT work;
             SystemParametersInfo(0x0030, 0, out work, 0);

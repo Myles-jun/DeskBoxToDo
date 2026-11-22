@@ -50,6 +50,25 @@ namespace DeskBoxToDo.WinUI
             HookResizeBorders();
             StartReminderTimer();
 
+            if (Environment.GetEnvironmentVariable("DBT_AI_TEST") == "1")
+            {
+                var aiProbe = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+                aiProbe.Tick += async (sender, args) =>
+                {
+                    aiProbe.Stop();
+                    try
+                    {
+                        AiReparse.Result r = await AiReparse.ParseAsync("明天下午三点 交周报 重要");
+                        Console.WriteLine("AI OK title=" + r.Title + " due=" + r.Due + " rec=" + r.Recurrence + " color=" + r.Color + " steps=" + r.Steps.Length);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("AI FAIL: " + ex.Message);
+                    }
+                };
+                aiProbe.Start();
+            }
+
             if (Environment.GetEnvironmentVariable("DBT_OPEN_CONFIRM") == "1")
             {
                 var confirmProbe = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1000) };
@@ -170,7 +189,7 @@ namespace DeskBoxToDo.WinUI
             appWindow.TitleBar.ButtonInactiveForegroundColor = Colors.Transparent;
             appWindow.TitleBar.ButtonHoverBackgroundColor = Color.FromArgb(40, 255, 255, 255);
 
-            appWindow.Resize(new SizeInt32(_settings.Width, _settings.Height));
+            appWindow.Resize(new SizeInt32(Dpi.Px(hwnd, _settings.Width), Dpi.Px(hwnd, _settings.Height)));
             appWindow.Move(new PointInt32(980, 380));
 
             ApplyClassBackground(hwnd);
@@ -667,7 +686,8 @@ namespace DeskBoxToDo.WinUI
                 SimplifyBackdropForInteraction(true);
                 GetCursorPos(out _dragStartScreen);
                 _dragStartWindow = AppWindow.Position;
-                RootGrid.CapturePointer(args.Pointer);
+                var captureTarget = args.OriginalSource as UIElement ?? RootGrid;
+                captureTarget.CapturePointer(args.Pointer);
             };
 
             RootGrid.PointerMoved += (sender, args) =>
