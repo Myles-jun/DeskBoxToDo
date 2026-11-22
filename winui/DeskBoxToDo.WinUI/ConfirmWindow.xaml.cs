@@ -59,6 +59,7 @@ namespace DeskBoxToDo.WinUI
             StepsBox.Text = string.Join("\r\n", draft.Steps ?? new List<string>());
 
             HookMinimumSize(WinRT.Interop.WindowNative.GetWindowHandle(this));
+            HookNativeDrag(WinRT.Interop.WindowNative.GetWindowHandle(this));
             TitleBox.Focus(FocusState.Programmatic);
         }
 
@@ -101,6 +102,7 @@ namespace DeskBoxToDo.WinUI
                         int headerHeight = (int)Math.Round(56 * Dpi.ScaleFor(hwnd));
                         if (client.Y >= 0 && client.Y <= headerHeight)
                         {
+                            Console.WriteLine("nchittest -> caption at " + client.Y);
                             return (IntPtr)HtCaption;
                         }
                     }
