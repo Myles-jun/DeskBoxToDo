@@ -194,6 +194,9 @@ namespace DeskBoxToDo.WinUI
 
             ApplyClassBackground(hwnd);
 
+            // Explicitly NOT topmost: the window behaves like a normal app window.
+            SetWindowPos(hwnd, (IntPtr)0xFFFFFFFE /* HWND_NOTOPMOST */, 0, 0, 0, 0, 0x0003);
+
             int round = 2;
             DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
             // 让系统不要画边框色（0xFFFFFFFE = DWMWA_COLOR_NONE），避免四周黑边
@@ -658,6 +661,26 @@ namespace DeskBoxToDo.WinUI
             RootGrid.PointerMoved += (sender, args) => OnResizeMoved(sender, args);
             RootGrid.PointerReleased += (sender, args) => OnResizeReleased(sender, args);
         }
+        /// <summary>True when the press landed on (or inside) a real control.</summary>
+        private static bool IsInteractiveSource(DependencyObject source)
+        {
+            DependencyObject current = source;
+            int guard = 0;
+            while (current != null && guard++ < 12)
+            {
+                if (current is Button || current is CheckBox || current is TextBox ||
+                    current is ComboBox || current is ToggleSwitch || current is TimePicker ||
+                    current is CalendarDatePicker || current is ScrollBar || current is ListViewItem ||
+                    current is ListView || current is ScrollViewer)
+                {
+                    return true;
+                }
+
+                current = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(current);
+            }
+
+            return false;
+        }
         private void HookDrag()
         {
             Console.WriteLine("drag handlers attached");
@@ -670,13 +693,12 @@ namespace DeskBoxToDo.WinUI
                     return;
                 }
 
-                // Header strip only (above the tabs); buttons keep their own taps.
-                if (point.Position.Y > 46)
-                {
-                    return;
-                }
-
-                if (args.OriginalSource is Button || args.OriginalSource is FontIcon)
+                // Drag from anywhere that is not an interactive control (header,
+                // footer, empty list space) - same feel as 1.x.
+                var pressSource = args.OriginalSource as DependencyObject;
+                bool interactive = IsInteractiveSource(pressSource);
+                Console.WriteLine("press source=" + (pressSource == null ? "null" : pressSource.GetType().Name) + " interactive=" + interactive);
+                if (interactive)
                 {
                     return;
                 }

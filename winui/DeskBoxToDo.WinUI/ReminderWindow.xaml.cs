@@ -41,7 +41,6 @@ namespace DeskBoxToDo.WinUI
 
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
-                presenter.SetBorderAndTitleBar(false, false);
                 presenter.IsResizable = false;
                 presenter.IsMaximizable = false;
                 presenter.IsMinimizable = false;
@@ -53,10 +52,6 @@ namespace DeskBoxToDo.WinUI
             int borderColor = unchecked((int)0xFFFFFFFE);
             DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
 
-            int style = GetWindowLong(hwnd, -16);
-            style &= ~(0x00C00000 | 0x00040000 | 0x00080000 | 0x00020000 | 0x00010000);
-            SetWindowLong(hwnd, -16, style);
-            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027);
 
             appWindow.Resize(new SizeInt32(Dpi.Px(hwnd, 360), Dpi.Px(hwnd, 124)));
 

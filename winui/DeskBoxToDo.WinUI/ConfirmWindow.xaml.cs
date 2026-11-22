@@ -57,9 +57,121 @@ namespace DeskBoxToDo.WinUI
             ImportantSwitch.IsOn = draft.Important;
             StepsBox.Text = string.Join("\r\n", draft.Steps ?? new List<string>());
 
+            HookConfirmDrag();
+            HookNativeDrag(WinRT.Interop.WindowNative.GetWindowHandle(this));
             TitleBox.Focus(FocusState.Programmatic);
         }
 
+        private bool _dragging;
+        private PointInt32 _dragStartWindow;
+        private POINT _dragStartCursor;
+
+        private const int WmNchittest = 0x0084;
+        private const int HtCaption = 2;
+
+        private delegate IntPtr SubclassProc(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+
+        private SubclassProc _subclass;
+        private IntPtr _oldProc;
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+        private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr value);
+
+        [DllImport("user32.dll", EntryPoint = "CallWindowProcW")]
+        private static extern IntPtr CallWindowProc(IntPtr previous, IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool ScreenToClient(IntPtr hwnd, ref POINT point);
+
+        /// <summary>
+        /// Let Windows drag the dialog by its header row (HTCAPTION). XAML pointer
+        /// capture on this window proved unreliable, and the native path also gives
+        /// proper snap behaviour for free.
+        /// </summary>
+        private void HookNativeDrag(IntPtr hwnd)
+        {
+            _subclass = (h, message, wParam, lParam) =>
+            {
+                if (message == WmNchittest)
+                {
+                    GetCursorPos(out POINT screen);
+                    POINT client = screen;
+                    if (ScreenToClient(hwnd, ref client))
+                    {
+                        int headerHeight = (int)Math.Round(56 * Dpi.ScaleFor(hwnd));
+                        if (client.Y >= 0 && client.Y <= headerHeight)
+                        {
+                            return (IntPtr)HtCaption;
+                        }
+                    }
+                }
+
+                return CallWindowProc(_oldProc, h, message, wParam, lParam);
+            };
+
+            _oldProc = SetWindowLongPtr(hwnd, -4, Marshal.GetFunctionPointerForDelegate(_subclass));
+        }
+        private void HookConfirmDrag()
+        {
+            // Drag by the header row only: it is a plain panel, so no control
+            // steals the press and pointer capture behaves predictably.
+            HeaderRow.PointerPressed += (sender, args) =>
+            {
+                var point = args.GetCurrentPoint(HeaderRow);
+                if (!point.Properties.IsLeftButtonPressed)
+                {
+                    return;
+                }
+
+                _dragging = true;
+                Console.WriteLine("confirm press");
+                GetCursorPos(out _dragStartCursor);
+                _dragStartWindow = AppWindow.Position;
+                HeaderRow.CapturePointer(args.Pointer);
+            };
+
+            HeaderRow.PointerMoved += (sender, args) =>
+            {
+                if (!_dragging)
+                {
+                    return;
+                }
+
+                GetCursorPos(out POINT now);
+                AppWindow.Move(new PointInt32(
+                    _dragStartWindow.X + (now.X - _dragStartCursor.X),
+                    _dragStartWindow.Y + (now.Y - _dragStartCursor.Y)));
+                Console.WriteLine("confirm move " + now.X + "," + now.Y);
+            };
+
+            HeaderRow.PointerReleased += (sender, args) =>
+            {
+                if (_dragging)
+                {
+                    _dragging = false;
+                    HeaderRow.ReleasePointerCapture(args.Pointer);
+                    Console.WriteLine("confirm release");
+                }
+            };
+        }
+
+        private static bool IsControl(DependencyObject source)
+        {
+            DependencyObject current = source;
+            int guard = 0;
+            while (current != null && guard++ < 12)
+            {
+                if (current is Button || current is TextBox || current is ComboBox ||
+                    current is TimePicker || current is CalendarDatePicker || current is ToggleSwitch)
+                {
+                    return true;
+                }
+
+                current = VisualTreeHelper.GetParent(current);
+            }
+
+            return false;
+        }
         private void ConfigureWindow()
         {
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -68,11 +180,9 @@ namespace DeskBoxToDo.WinUI
 
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
-                presenter.SetBorderAndTitleBar(false, false);
                 presenter.IsResizable = false;
                 presenter.IsMaximizable = false;
                 presenter.IsMinimizable = false;
-                presenter.IsAlwaysOnTop = true;
             }
 
             int round = 2;
@@ -80,10 +190,6 @@ namespace DeskBoxToDo.WinUI
             int borderColor = unchecked((int)0xFFFFFFFE);
             DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
 
-            int style = GetWindowLong(hwnd, -16);
-            style &= ~(0x00C00000 | 0x00040000 | 0x00080000 | 0x00020000 | 0x00010000);
-            SetWindowLong(hwnd, -16, style);
-            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027);
 
             appWindow.Resize(new SizeInt32(Dpi.Px(hwnd, 560), Dpi.Px(hwnd, 620)));
 
@@ -272,6 +378,16 @@ namespace DeskBoxToDo.WinUI
             public int Top;
             public int Right;
             public int Bottom;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT point);
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int X;
+            public int Y;
         }
 
         [DllImport("user32.dll")]
