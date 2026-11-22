@@ -1,43 +1,54 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices;
+using System;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.UI;
-using Microsoft.UI.Composition.SystemBackdrops;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Windows.System;
 using Windows.Graphics;
-using Windows.UI;
-using Windows.UI.ViewManagement;
-using WinRT;
 
 namespace DeskBoxToDo.WinUI
 {
-    /// <summary>Small settings card: default due time, data source and hotkey.</summary>
+    /// <summary>Settings card: default due time, data source, hotkey recorder, appearance and AI.</summary>
     public sealed partial class SettingsWindow : Window
     {
-        private DesktopAcrylicController _acrylic;
-        private SystemBackdropConfiguration _configuration;
+        private readonly WindowChrome _chrome;
+        private readonly GlassSettings _settings;
 
         public event EventHandler<(int Hour, int Minute, string Mode, uint Modifiers, uint Key)> Saved;
 
-        private static readonly (string Label, uint Modifiers, uint Key)[] Hotkeys =
-        {
-            ("Alt + Q", 0x0001, 0x51),
-            ("Ctrl + Alt + Q", 0x0003, 0x51),
-            ("Ctrl + Shift + Space", 0x0006, 0x20),
-            ("Alt + Space", 0x0001, 0x20)
-        };
+        private uint _modifiers;
+        private uint _key;
+        private bool _recording;
 
         public SettingsWindow(GlassSettings settings, int currentHour, int currentMinute, string mode, uint modifiers, uint key)
         {
             InitializeComponent();
-            ConfigureWindow();
-            ApplyAcrylic();
+
+            _settings = settings ?? GlassSettings.Load();
+            _modifiers = modifiers;
+            _key = key;
+
+            _chrome = new WindowChrome(this, Shell, new ChromeOptions
+            {
+                Resizable = true,
+                MinWidth = 400,
+                MinHeight = 560,
+                ToolWindow = true
+            });
+            _chrome.Attach();
+            CenterOnWorkArea(460, 680);
+
+            var escape = new KeyboardAccelerator { Key = VirtualKey.Escape };
+            escape.Invoked += (sender, args) =>
+            {
+                args.Handled = true;
+                Close();
+            };
+            Shell.KeyboardAccelerators.Add(escape);
+            Shell.KeyDown += OnShellKeyDown;
 
             for (int hour = 0; hour < 24; hour++)
             {
@@ -52,15 +63,27 @@ namespace DeskBoxToDo.WinUI
             HourBox.SelectedIndex = Math.Clamp(currentHour, 0, 23);
             MinuteBox.SelectedIndex = Math.Clamp(currentMinute / 5, 0, 11);
 
-            foreach (var entry in Hotkeys)
+            ModeBox.SelectedIndex = string.Equals(mode, "deskbox", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+            AutostartSwitch.IsOn = Autostart.IsEnabled;
+
+            for (int i = 0; i < RadiusBox.Items.Count; i++)
             {
-                HotkeyBox.Items.Add(new ComboBoxItem { Content = entry.Label });
+                if (RadiusBox.Items[i] is ComboBoxItem item &&
+                    int.TryParse(item.Tag?.ToString(), out int radius) &&
+                    radius == _settings.CornerRadius)
+                {
+                    RadiusBox.SelectedIndex = i;
+                    break;
+                }
             }
 
-            int hotkeyIndex = Array.FindIndex(Hotkeys, entry => entry.Modifiers == modifiers && entry.Key == key);
-            HotkeyBox.SelectedIndex = hotkeyIndex < 0 ? 0 : hotkeyIndex;
+            if (RadiusBox.SelectedIndex < 0)
+            {
+                RadiusBox.SelectedIndex = 0;
+            }
 
-            ModeBox.SelectedIndex = string.Equals(mode, "deskbox", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+            DensitySlider.Value = _settings.Brightness;
+            HotkeyLabel.Text = DescribeHotkey(_modifiers, _key);
 
             var ai = ReadAiConfig();
             AiBaseBox.Text = ai.BaseUrl;
@@ -68,74 +91,136 @@ namespace DeskBoxToDo.WinUI
             AiKeyBox.Password = ai.ApiKey;
         }
 
-        private void HideSystemCaptionButtons(IntPtr hwnd)
+        private void CenterOnWorkArea(int widthDip, int heightDip)
         {
-            // Our own header already has a close button; drop the system ones so
-            // no light caption strip is drawn on the glass.
-            int style = GetWindowLong(hwnd, -16);
-            style &= ~0x00080000; // WS_SYSMENU
-            SetWindowLong(hwnd, -16, style);
-            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027);
+            _chrome.ResizeTo(widthDip, heightDip);
+            RectInt32 area = DisplayArea
+                .GetFromWindowId(_chrome.AppWindow.Id, DisplayAreaFallback.Nearest)
+                .WorkArea;
+            int width = Dpi.Px(_chrome.Hwnd, widthDip);
+            int height = Dpi.Px(_chrome.Hwnd, heightDip);
+            _chrome.MoveTo(
+                area.X + (area.Width - width) / 2,
+                area.Y + (area.Height - height) / 2);
         }
-        private void ConfigureWindow()
-        {
-            IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            WindowId id = Win32Interop.GetWindowIdFromWindow(hwnd);
-            AppWindow appWindow = AppWindow.GetFromWindowId(id);
 
-            if (appWindow.Presenter is OverlappedPresenter presenter)
+        // ── Hotkey recorder ────────────────────────────────────────
+
+        private void OnRecordHotkeyClick(object sender, RoutedEventArgs args)
+        {
+            _recording = true;
+            RecordButton.Content = "按下组合键…";
+            HotkeyHint.Text = "正在录制：按下组合键（Esc 取消）。";
+        }
+
+        private void OnShellKeyDown(object sender, KeyRoutedEventArgs args)
+        {
+            if (!_recording)
             {
-                presenter.IsResizable = false;
-                presenter.IsMaximizable = false;
-                presenter.IsMinimizable = false;
-                presenter.IsAlwaysOnTop = true;
+                return;
             }
 
-            // Dark caption: the default system title bar would be white on glass.
-            // Win11: paint the caption itself (the button strip ignores AppWindow colours
-            // unless the caption colour is set through DWM).
-            int captionColor = unchecked((int)0x00261C18); // COLORREF 0x00BBGGRR = rgb(24,28,38)
-            DwmSetWindowAttribute(hwnd, 35, ref captionColor, sizeof(int));
-            int captionTextColor = unchecked((int)0x00F2F4F8); // near-white text
-            DwmSetWindowAttribute(hwnd, 36, ref captionTextColor, sizeof(int));
+            VirtualKey key = args.Key;
+            if (key is VirtualKey.Control or VirtualKey.Shift or VirtualKey.Menu or
+                VirtualKey.LeftControl or VirtualKey.RightControl or
+                VirtualKey.LeftShift or VirtualKey.RightShift or
+                VirtualKey.LeftMenu or VirtualKey.RightMenu or
+                VirtualKey.LeftWindows or VirtualKey.RightWindows)
+            {
+                args.Handled = true;
+                return;
+            }
 
-            int darkMode = 1;
-            DwmSetWindowAttribute(hwnd, 20, ref darkMode, sizeof(int));
+            uint modifiers = 0;
+            if (IsDown(VirtualKey.Control)) modifiers |= 0x0002; // MOD_CONTROL
+            if (IsDown(VirtualKey.Shift)) modifiers |= 0x0004;    // MOD_SHIFT
+            if (IsDown(VirtualKey.Menu)) modifiers |= 0x0001;     // MOD_ALT
 
-            var titleBar = appWindow.TitleBar;
-            titleBar.BackgroundColor = Color.FromArgb(255, 24, 28, 38);
-            titleBar.InactiveBackgroundColor = Color.FromArgb(255, 24, 28, 38);
-            titleBar.ForegroundColor = Colors.White;
-            titleBar.InactiveForegroundColor = Color.FromArgb(200, 226, 230, 240);
-            // Match the caption: a transparent button background shows up as a
-            // white box on the glass.
-            titleBar.ButtonBackgroundColor = Color.FromArgb(255, 24, 28, 38);
-            titleBar.ButtonInactiveBackgroundColor = Color.FromArgb(255, 24, 28, 38);
-            titleBar.ButtonForegroundColor = Colors.White;
-            titleBar.ButtonInactiveForegroundColor = Color.FromArgb(160, 226, 230, 240);
-            titleBar.ButtonHoverBackgroundColor = Color.FromArgb(40, 255, 255, 255);
-            titleBar.ButtonHoverForegroundColor = Colors.White;
-            HideSystemCaptionButtons(WinRT.Interop.WindowNative.GetWindowHandle(this));
+            if (modifiers == 0)
+            {
+                HotkeyHint.Text = "组合键必须包含 Ctrl / Alt / Shift 之一，请重新按。";
+                args.Handled = true;
+                return;
+            }
 
-            int round = 2;
-            DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
-            int borderColor = unchecked((int)0xFFFFFFFE);
-            DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
-
-
-            appWindow.Resize(new SizeInt32(Dpi.Px(hwnd, 440), Dpi.Px(hwnd, 420)));
-
-            RECT work;
-            SystemParametersInfo(0x0030, 0, out work, 0);
-            appWindow.Move(new PointInt32(
-                work.Left + (work.Right - work.Left - 440) / 2,
-                work.Top + (work.Bottom - work.Top - 420) / 2));
+            _modifiers = modifiers;
+            _key = (uint)key;
+            _recording = false;
+            RecordButton.Content = "录制";
+            HotkeyLabel.Text = DescribeHotkey(_modifiers, _key);
+            HotkeyHint.Text = "已记录，点「保存」生效。";
+            args.Handled = true;
         }
 
-        private void ApplyAcrylic()
+        private static bool IsDown(VirtualKey key)
         {
-            _acrylic = GlassHelper.Attach(this);
+            try
+            {
+                return InputKeyboardSource.GetKeyStateForCurrentThread(key)
+                    .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            }
+            catch
+            {
+                return false;
+            }
         }
+
+        private static string DescribeHotkey(uint modifiers, uint key)
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            if ((modifiers & 0x0002) != 0) parts.Add("Ctrl");
+            if ((modifiers & 0x0001) != 0) parts.Add("Alt");
+            if ((modifiers & 0x0004) != 0) parts.Add("Shift");
+            if ((modifiers & 0x0008) != 0) parts.Add("Win");
+
+            string keyName;
+            try
+            {
+                keyName = ((VirtualKey)key).ToString();
+            }
+            catch
+            {
+                keyName = "?";
+            }
+
+            parts.Add(keyName);
+            return string.Join(" + ", parts);
+        }
+
+        // ── Save ───────────────────────────────────────────────────
+
+        private void OnSaveClick(object sender, RoutedEventArgs args)
+        {
+            int hour = HourBox.SelectedIndex < 0 ? 8 : HourBox.SelectedIndex;
+            int minute = MinuteBox.SelectedIndex < 0 ? 0 : MinuteBox.SelectedIndex * 5;
+            string mode = ModeBox.SelectedIndex == 1 ? "deskbox" : "standalone";
+
+            WriteAiConfig(AiBaseBox.Text.Trim(), AiModelBox.Text.Trim(), AiKeyBox.Password);
+            Autostart.Set(AutostartSwitch.IsOn);
+
+            int radius = -1;
+            if (RadiusBox.SelectedItem is ComboBoxItem radiusItem)
+            {
+                int.TryParse(radiusItem.Tag?.ToString(), out radius);
+            }
+
+            _settings.CornerRadius = radius;
+            _settings.Brightness = (int)Math.Round(DensitySlider.Value);
+            _settings.HotkeyModifiers = _modifiers;
+            _settings.HotkeyKey = _key;
+            _settings.Save();
+
+            Appearance.Reload();
+            Appearance.ApplyAll();
+
+            Saved?.Invoke(this, (hour, minute, mode, _modifiers, _key));
+            Close();
+        }
+
+        private void OnCancelClick(object sender, RoutedEventArgs args) => Close();
+
+        // ── AI config ──────────────────────────────────────────────
+
         private static (string BaseUrl, string Model, string ApiKey) ReadAiConfig()
         {
             string baseUrl = "https://api.deepseek.com/v1";
@@ -146,23 +231,21 @@ namespace DeskBoxToDo.WinUI
                 string path = System.IO.Path.Combine(TodoStore.DataRoot, "config.json");
                 if (System.IO.File.Exists(path))
                 {
-                    using (JsonDocument document = JsonDocument.Parse(System.IO.File.ReadAllText(path)))
+                    using JsonDocument document = JsonDocument.Parse(System.IO.File.ReadAllText(path));
+                    JsonElement root = document.RootElement;
+                    if (root.TryGetProperty("llmBaseUrl", out JsonElement b) && b.ValueKind == JsonValueKind.String)
                     {
-                        JsonElement root = document.RootElement;
-                        if (root.TryGetProperty("llmBaseUrl", out JsonElement b) && b.ValueKind == JsonValueKind.String)
-                        {
-                            baseUrl = b.GetString() ?? baseUrl;
-                        }
+                        baseUrl = b.GetString() ?? baseUrl;
+                    }
 
-                        if (root.TryGetProperty("llmModel", out JsonElement m) && m.ValueKind == JsonValueKind.String)
-                        {
-                            model = m.GetString() ?? model;
-                        }
+                    if (root.TryGetProperty("llmModel", out JsonElement m) && m.ValueKind == JsonValueKind.String)
+                    {
+                        model = m.GetString() ?? model;
+                    }
 
-                        if (root.TryGetProperty("llmApiKey", out JsonElement k) && k.ValueKind == JsonValueKind.String)
-                        {
-                            key = k.GetString() ?? "";
-                        }
+                    if (root.TryGetProperty("llmApiKey", out JsonElement k) && k.ValueKind == JsonValueKind.String)
+                    {
+                        key = k.GetString() ?? "";
                     }
                 }
             }
@@ -196,45 +279,5 @@ namespace DeskBoxToDo.WinUI
                 Console.WriteLine("write ai config failed: " + ex.Message);
             }
         }
-        private void OnSaveClick(object sender, RoutedEventArgs args)
-        {
-            int hour = HourBox.SelectedIndex < 0 ? 8 : HourBox.SelectedIndex;
-            int minute = MinuteBox.SelectedIndex < 0 ? 0 : MinuteBox.SelectedIndex * 5;
-            string mode = ModeBox.SelectedIndex == 1 ? "deskbox" : "standalone";
-            int hotkeyIndex = HotkeyBox.SelectedIndex < 0 ? 0 : HotkeyBox.SelectedIndex;
-
-            WriteAiConfig(AiBaseBox.Text.Trim(), AiModelBox.Text.Trim(), AiKeyBox.Password);
-            Saved?.Invoke(this, (hour, minute, mode, Hotkeys[hotkeyIndex].Modifiers, Hotkeys[hotkeyIndex].Key));
-            Close();
-        }
-
-        private void OnCancelClick(object sender, RoutedEventArgs args)
-        {
-            Close();
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct RECT
-        {
-            public int Left;
-            public int Top;
-            public int Right;
-            public int Bottom;
-        }
-
-        [DllImport("user32.dll")]
-        private static extern bool SystemParametersInfo(uint action, uint param, out RECT data, uint winIni);
-
-        [DllImport("user32.dll")]
-        private static extern int GetWindowLong(IntPtr hwnd, int index);
-
-        [DllImport("user32.dll")]
-        private static extern int SetWindowLong(IntPtr hwnd, int index, int value);
-
-        [DllImport("user32.dll")]
-        private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
-
-        [DllImport("dwmapi.dll")]
-        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
     }
 }

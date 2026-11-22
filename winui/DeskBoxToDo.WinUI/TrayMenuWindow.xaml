@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="DeskBoxToDo.WinUI.TrayMenuWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DeskBoxToDo.WinUI"
+    Title="DeskBoxToDo">
+
+    <local:GlassSurface x:Name="Shell" ShowTitleBar="False" CornerRadius="10">
+        <StackPanel x:Name="ItemsHost" Padding="6" Spacing="1" />
+    </local:GlassSurface>
+</Window>

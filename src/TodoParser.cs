@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -32,7 +32,7 @@ namespace DeskBoxToDo
             RegexOptions.Compiled);
 
         private static readonly Regex RxWeekday = new Regex(
-            @"(本|这|下下|下)?\s*(?:周|星期|礼拜)\s*([一二三四五六日天])",
+            @"(下下下|下下|下|本|这)?\s*(?:周|星期|礼拜)\s*([一二三四五六日天])",
             RegexOptions.Compiled);
 
         private static readonly Regex RxYmd = new Regex(
@@ -52,15 +52,15 @@ namespace DeskBoxToDo
             RegexOptions.Compiled);
 
         private static readonly Regex RxTime = new Regex(
-            @"(上午|早上|早晨|清晨|中午|下午|傍晚|晚上|晚)?\s*(\d{1,2})\s*[:：点时]\s*(\d{1,2})?\s*分?",
+            @"(上午|早上|早晨|清晨|中午|下午|傍晚|晚上|晚)?\s*[，,、]?\s*(\d{1,2})\s*[:：点时]\s*(\d{1,2})?\s*分?",
             RegexOptions.Compiled);
 
         private static readonly Regex RxTimeCn = new Regex(
-            @"(上午|早上|早晨|清晨|中午|下午|傍晚|晚上|晚)?\s*([一二三四五六七八九十两]{1,3})\s*[点时](半)?",
+            @"(上午|早上|早晨|清晨|中午|下午|傍晚|晚上|晚)?\s*[，,、]?\s*([一二三四五六七八九十两]{1,3})\s*[点时](半)?",
             RegexOptions.Compiled);
 
         private static readonly Regex RxHalf = new Regex(
-            @"(上午|早上|早晨|清晨|中午|下午|傍晚|晚上|晚)?\s*(\d{1,2})\s*点半",
+            @"(上午|早上|早晨|清晨|中午|下午|傍晚|晚上|晚)?\s*[，,、]?\s*(\d{1,2})\s*点半",
             RegexOptions.Compiled);
 
         private static readonly Regex RxMention = new Regex(
@@ -169,6 +169,12 @@ namespace DeskBoxToDo
         {
             string text = RxMention.Replace(raw, " ");
             text = Regex.Replace(text, @"^\s*[【\[][^】\]]{1,10}[】\]]\s*", "");
+            // "16周周二" (term week + weekday): the week number is not a date we
+            // can resolve, drop it so the weekday rule still works.
+            text = Regex.Replace(text, @"第?\s*\d{1,2}\s*周(?=\s*(?:周|星期|礼拜))", " ");
+            // "下下下周周五" / "16周周二": collapse the duplicated 周 so the
+            // weekday rule sees one marker and the week offset survives.
+            text = Regex.Replace(text, @"周\s*周", "周");
             text = Regex.Replace(text, @"[ \t]+", " ");
             text = Regex.Replace(text, @"\n{2,}", "\n");
             return text.Trim();
@@ -223,13 +229,14 @@ namespace DeskBoxToDo
                     int today = ((int)now.DayOfWeek + 6) % 7 + 1; // Monday = 1 ... Sunday = 7
                     int delta = ((target - today) % 7 + 7) % 7;
                     string prefix = match.Groups[1].Value;
-                    if (prefix == "下")
+                    if (prefix.Length > 1)
+                    {
+                        // 下下 / 下下下: each extra 下 is one more week.
+                        delta += prefix.Length * 7;
+                    }
+                    else if (prefix == "下")
                     {
                         delta += 7;
-                    }
-                    else if (prefix == "下下")
-                    {
-                        delta += 14;
                     }
 
                     if (delta == 0 && now.Hour >= 12)
@@ -465,15 +472,13 @@ namespace DeskBoxToDo
                 }
             }
 
-            // First clause of the head is the title; the rest are context steps.
+            // Title = first clause that survives date/time/location cleaning; the
+            // remaining clauses become context steps.
             var headClauses = new List<string>();
             foreach (string clause in SplitClauses(head))
             {
                 headClauses.Add(clause);
             }
-
-            string titleSource = headClauses.Count > 0 ? headClauses[0] : head;
-            string title = CleanTitle(titleSource);
 
             var bodyClauses = new List<string>();
             foreach (string clause in SplitClauses(body))
@@ -481,11 +486,34 @@ namespace DeskBoxToDo
                 bodyClauses.Add(clause);
             }
 
-            // "群公告：……" — the tag is not the task, promote the first real clause.
-            if (RxGenericTag.IsMatch(title.Trim(' ', '：', ':')) && bodyClauses.Count > 0)
+            string title = "";
+            var remaining = new List<string>();
+            var clauses = new List<string>(headClauses);
+            clauses.AddRange(bodyClauses);
+            foreach (string clause in clauses)
             {
-                title = CleanTitle(bodyClauses[0]);
-                bodyClauses.RemoveAt(0);
+                string cleaned = CleanTitle(clause);
+                if (cleaned.Length == 0)
+                {
+                    continue;
+                }
+
+                if (title.Length == 0 && !IsLocationOnly(cleaned))
+                {
+                    title = cleaned;
+                    continue;
+                }
+
+                remaining.Add(cleaned);
+            }
+
+            // "群公告：……" — the tag is not the task, promote the first real clause.
+            if (title.Length > 0 &&
+                RxGenericTag.IsMatch(title.Trim(' ', '：', ':')) &&
+                remaining.Count > 0)
+            {
+                title = remaining[0];
+                remaining.RemoveAt(0);
             }
 
             if (title.Length == 0)
@@ -500,15 +528,21 @@ namespace DeskBoxToDo
 
             draft.Title = title;
 
-            for (int index = 1; index < headClauses.Count; index++)
-            {
-                AddStep(draft, headClauses[index], title);
-            }
-
-            foreach (string clause in bodyClauses)
+            foreach (string clause in remaining)
             {
                 AddStep(draft, clause, title);
             }
+        }
+
+        /// <summary>"教三412" / "水利楼" on its own is a place, not the task.</summary>
+        private static bool IsLocationOnly(string clause)
+        {
+            if (clause.Length > 10)
+            {
+                return false;
+            }
+
+            return Regex.IsMatch(clause, @"(楼|室|馆|校区|教室|号楼|广场|中心)\s*\d*\s*$");
         }
 
         private static void AddStep(TodoDraft draft, string clause, string title)
@@ -544,6 +578,12 @@ namespace DeskBoxToDo
                 bool previousIsDigit = i > 0 && char.IsDigit(text[i - 1]);
                 bool nextIsDigit = i + 1 < text.Length && char.IsDigit(text[i + 1]);
                 if (ch == ':' && previousIsDigit && nextIsDigit)
+                {
+                    continue;
+                }
+
+                // "https://…" — the scheme colon is not a “标题：正文” separator.
+                if (ch == ':' && i + 2 < text.Length && text[i + 1] == '/' && text[i + 2] == '/')
                 {
                     continue;
                 }
@@ -632,11 +672,14 @@ namespace DeskBoxToDo
             cleaned = RxLeadingTimeNoise.Replace(cleaned, "").Trim();
             cleaned = StripDateAndTime(cleaned);
             cleaned = CutAtDeadlineMarker(cleaned);
+            cleaned = Regex.Replace(cleaned, @"^(上午|下午|中午|晚上|傍晚|晚|早上|早晨|清晨)$", "").Trim();
             cleaned = Regex.Replace(cleaned, @"[ \t]{2,}", " ").Trim();
             cleaned = cleaned.TrimEnd('。', '！', '？', '；', ';', '，', ',', '、', '：', ':', ' ');
             if (cleaned.Length == 0)
             {
-                return title.Trim();
+                // A clause that only carried a date/time ("12月16号，") is not a
+                // title; the caller picks the next clause instead.
+                return "";
             }
 
             return cleaned;
@@ -649,7 +692,9 @@ namespace DeskBoxToDo
             result = RxWeekday.Replace(result, " ");
             result = RxRelative.Replace(result, " ");
             result = RxHalf.Replace(result, " ");
+            result = RxTimeCn.Replace(result, " ");
             result = RxTime.Replace(result, " ");
+            result = Regex.Replace(result, @"第?\s*\d{1,2}\s*周", " ");
             result = Regex.Replace(result, @"\s*(到|至|~|～|—|-)\s*", " ");
             return result;
         }

@@ -1,4 +1,5 @@
-﻿<Application
+<?xml version="1.0" encoding="utf-8"?>
+<Application
     x:Class="DeskBoxToDo.WinUI.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
@@ -7,6 +8,184 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!--
+              Theme-aware overrides have to live in ThemeDictionaries, otherwise
+              WinUI's own Fluent dictionaries win the lookup and native controls
+              (TextBox / ComboBox / CheckBox) stay light on our dark glass.
+            -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="CardFillBrush" Color="#0DFFFFFF" />
+                    <SolidColorBrush x:Key="CardStrokeBrush" Color="#1FFFFFFF" />
+                    <SolidColorBrush x:Key="FieldFillBrush" Color="#0DFFFFFF" />
+                    <SolidColorBrush x:Key="FieldStrokeBrush" Color="#20FFFFFF" />
+                    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#E8FFFFFF" />
+                    <SolidColorBrush x:Key="TextTertiaryBrush" Color="#B8FFFFFF" />
+                    <SolidColorBrush x:Key="AccentSoftBrush" Color="#7FB2FF" />
+
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#1AFFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0FFFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+
+                    <SolidColorBrush x:Key="TextControlBackground" Color="#0DFFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#16FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#16FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#08FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBorderBrush" Color="#20FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#33FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#7FB2FF" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#12FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlForeground" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlForegroundFocused" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#8FFFFFFF" />
+                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#B3FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#B3FFFFFF" />
+                    <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+
+                    <SolidColorBrush x:Key="ComboBoxBackground" Color="#0DFFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#16FFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#1FFFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBackgroundUnfocused" Color="#0DFFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#20FFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#33FFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="#7FB2FF" />
+                    <SolidColorBrush x:Key="ComboBoxForeground" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#F2262029" />
+                    <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#26FFFFFF" />
+
+                    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="#E0FFFFFF" />
+                    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeChecked" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#1A1620" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#4D8FE3" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#5C9BEA" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#3F7FCC" />
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="CardFillBrush" Color="#0DFFFFFF" />
+                    <SolidColorBrush x:Key="CardStrokeBrush" Color="#1FFFFFFF" />
+                    <SolidColorBrush x:Key="FieldFillBrush" Color="#0DFFFFFF" />
+                    <SolidColorBrush x:Key="FieldStrokeBrush" Color="#20FFFFFF" />
+                    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#E8FFFFFF" />
+                    <SolidColorBrush x:Key="TextTertiaryBrush" Color="#B8FFFFFF" />
+                    <SolidColorBrush x:Key="AccentSoftBrush" Color="#7FB2FF" />
+
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#1AFFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0FFFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+
+                    <SolidColorBrush x:Key="TextControlBackground" Color="#0DFFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#16FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#16FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#08FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBorderBrush" Color="#20FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#33FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#7FB2FF" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#12FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlForeground" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlForegroundFocused" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#8FFFFFFF" />
+                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#B3FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#B3FFFFFF" />
+                    <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+
+                    <SolidColorBrush x:Key="ComboBoxBackground" Color="#0DFFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#16FFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#1FFFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBackgroundUnfocused" Color="#0DFFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#20FFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#33FFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="#7FB2FF" />
+                    <SolidColorBrush x:Key="ComboBoxForeground" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#F2262029" />
+                    <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#26FFFFFF" />
+
+                    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="#E0FFFFFF" />
+                    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeChecked" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#1A1620" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#4D8FE3" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#5C9BEA" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#3F7FCC" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <!-- Palette used by our own chrome elements via StaticResource -->
+            <SolidColorBrush x:Key="CardFillBrush" Color="#0DFFFFFF" />
+            <SolidColorBrush x:Key="CardStrokeBrush" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="FieldFillBrush" Color="#0DFFFFFF" />
+            <SolidColorBrush x:Key="FieldStrokeBrush" Color="#20FFFFFF" />
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F5F5F5" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#E8FFFFFF" />
+            <SolidColorBrush x:Key="TextTertiaryBrush" Color="#B8FFFFFF" />
+            <SolidColorBrush x:Key="AccentSoftBrush" Color="#7FB2FF" />
+
+            <Style x:Key="ChromeIconButton" TargetType="Button">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="Foreground" Value="#E6EAF2" />
+                <Setter Property="UseSystemFocusVisuals" Value="False" />
+            </Style>
+
+            <Style x:Key="ChromeTextButton" TargetType="Button">
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="Padding" Value="10,4" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="#B8FFFFFF" />
+                <Setter Property="UseSystemFocusVisuals" Value="False" />
+            </Style>
+
+            <Style x:Key="ChromeInput" TargetType="TextBox">
+                <Setter Property="Background" Value="#0DFFFFFF" />
+                <Setter Property="BorderBrush" Value="#20FFFFFF" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="8,6" />
+                <Setter Property="FontSize" Value="13.5" />
+                <Setter Property="Foreground" Value="#F5F5F5" />
+            </Style>
+
+            <Style x:Key="ChromeFieldLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="Foreground" Value="#B8FFFFFF" />
+                <Setter Property="Margin" Value="0,0,0,2" />
+            </Style>
+
+            <Style x:Key="TabButtonStyle" TargetType="Button">
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="Padding" Value="0,3,0,1" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="CornerRadius" Value="5" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="UseSystemFocusVisuals" Value="False" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

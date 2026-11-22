@@ -1,4 +1,4 @@
-﻿# DeskBoxToDo
+# DeskBoxToDo
 
 > 选中一句话，直接变成待办。
 > 仓库：https://github.com/Myles-jun/DeskBoxToDo
@@ -21,11 +21,23 @@
 
 ## 安装
 
-1. 解压到任意目录（建议 `%LOCALAPPDATA%\Programs\DeskBoxToDo`）
+**方式一：安装程序（推荐）**
+
+下载 `DeskBoxToDo_2.0.0_Setup.exe`（约 13.5 MB），双击 →「安装」。特点：
+
+- 装到当前用户目录（`%LOCALAPPDATA%\Programs\DeskBoxToDo`），**不需要管理员权限**
+- **可以直接覆盖安装** 1.x / 2.x：会先关掉正在运行的旧程序、替换文件、清掉 1.x 留下的 `screenshots`，并沿用原来的安装位置
+- **待办数据保留**：数据在 `%LOCALAPPDATA%\DeskBoxToDo`，升级/卸载都不会动
+- 自动创建开始菜单快捷方式（可选桌面快捷方式），并写入「应用和功能」里的卸载入口
+- 静默安装：`DeskBoxToDo_2.0.0_Setup.exe /S /dir="D:\Apps\DeskBoxToDo" /desktop`
+
+**方式二：绿色版**
+
+1. 解压 `DeskBoxToDo_2.0.0.zip` 到任意目录（建议 `%LOCALAPPDATA%\Programs\DeskBoxToDo`）
 2. 双击 `DeskBoxToDo.exe`
 3. 跟着三步引导走：认识它 → 选快捷键 → 开机自启 / AI
 
-**环境要求**：Windows 10 1809+ / Windows 11（自带 .NET Framework 4.8），无需安装运行时。
+**环境要求**：Windows 10 1809+ / Windows 11；需要 **.NET 8 Desktop Runtime** 与 **Microsoft Windows App Runtime 1.7**（多数机器已随其它应用安装，安装器会检测并提示）。
 **关于 DeskBox**：默认「自带待办」模式不需要 DeskBox；想用桌面格子整理文件再装 [DeskBox](https://github.com/Tianyu199509/DeskBox)，然后在引导/设置里切到「接入 DeskBox」即可（数据格式一致，可随时切换）。
 
 > 首次运行 Windows 可能提示"未知发布者"，因为安装包没有代码签名 —— 点「更多信息 → 仍要运行」即可。
@@ -102,4 +114,4 @@
 
 ## 版本历史
 
-见 [CHANGELOG.md](CHANGELOG.md)。当前版本 1.2.0。
+见 [CHANGELOG.md](CHANGELOG.md)。当前版本 2.0.0（WinUI 3，界面按 DeskBox 的窗口实现路径重写）。

@@ -41,3 +41,8 @@ docs/glass.png[Bb]in/
 probe-winui/
 probe-wpf/
 *.user
+
+.dbt_uninstall_*.exe
+artifacts/
+winui/**/bin/x64/Release/**/data/
+winui/**/bin/x64/Release/**/diag.txt

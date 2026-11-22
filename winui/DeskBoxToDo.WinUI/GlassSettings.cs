@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text.Json;
 
@@ -16,6 +16,20 @@ namespace DeskBoxToDo.WinUI
         public int Width { get; set; } = 420;
 
         public int Height { get; set; } = 560;
+
+        /// <summary>Last window position (physical px). 0,0 means "never moved".</summary>
+        public int X { get; set; }
+
+        public int Y { get; set; }
+
+        /// <summary>normal | desktop | topmost</summary>
+        public string Layer { get; set; } = "normal";
+
+        /// <summary>Window corner radius in DIP; -1 = follow the design default.</summary>
+        public int CornerRadius { get; set; } = -1;
+
+        /// <summary>Surface opacity 0..100 (higher = more opaque).</summary>
+        public int Opacity { get; set; } = 100;
 
         public uint HotkeyModifiers { get; set; } = 0x0001; // MOD_ALT
 
@@ -48,14 +62,37 @@ namespace DeskBoxToDo.WinUI
 
         public void Save()
         {
-            try
+            // Explorer, the tray shell and antivirus can briefly hold the file;
+            // a couple of retries keeps a slider drag from losing its value.
+            for (int attempt = 0; attempt < 3; attempt++)
             {
-                Directory.CreateDirectory(TodoStore.DataRoot);
-                File.WriteAllText(FilePath, JsonSerializer.Serialize(this));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("settings write failed: " + ex.Message);
+                try
+                {
+                    Directory.CreateDirectory(TodoStore.DataRoot);
+                    File.WriteAllText(FilePath, JsonSerializer.Serialize(this));
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    if (attempt == 2)
+                    {
+                        Console.WriteLine("settings write failed: " + ex.GetType().Name + " 0x" + ex.HResult.ToString("X8") + " " + ex.Message);
+                        try
+                        {
+                            string probe = Path.Combine(TodoStore.DataRoot, "write-probe.txt");
+                            File.WriteAllText(probe, DateTime.Now.ToString("o"));
+                            Console.WriteLine("write probe ok: " + probe);
+                        }
+                        catch (Exception probeEx)
+                        {
+                            Console.WriteLine("write probe failed: " + probeEx.GetType().Name + " 0x" + probeEx.HResult.ToString("X8") + " " + probeEx.Message);
+                        }
+                    }
+                    else
+                    {
+                        System.Threading.Thread.Sleep(40);
+                    }
+                }
             }
         }
     }

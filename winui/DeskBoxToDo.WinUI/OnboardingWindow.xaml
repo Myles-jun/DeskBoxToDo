@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="DeskBoxToDo.WinUI.OnboardingWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DeskBoxToDo.WinUI"
+    Title="欢迎使用">
+
+    <local:GlassSurface x:Name="Shell" IconGlyph="&#xE8FD;" Title="欢迎使用 DeskBoxToDo">
+        <local:GlassSurface.TitleBarRight>
+            <Button Click="OnStartClick" Style="{StaticResource ChromeIconButton}" ToolTipService.ToolTip="关闭">
+                <FontIcon FontSize="13" Glyph="&#xE711;" />
+            </Button>
+        </local:GlassSurface.TitleBarRight>
+
+        <Grid Padding="16,4,16,14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock
+                Grid.Row="0"
+                FontSize="12.5"
+                Foreground="{StaticResource TextTertiaryBrush}"
+                Text="选中一句话，三秒变成待办。"
+                TextWrapping="Wrap" />
+
+            <StackPanel Grid.Row="1" Margin="0,14,0,0" Spacing="14">
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="26" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Width="24" Height="24" CornerRadius="12" Background="#2A7FB2FF"
+                            VerticalAlignment="Top">
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12"
+                                   FontWeight="SemiBold" Foreground="#F5F5F5" Text="1" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock FontSize="13" Foreground="{StaticResource TextPrimaryBrush}" Text="选中文字后按热键" />
+                        <TextBlock x:Name="HotkeyText" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"
+                                   Text="Alt + Q" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="26" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Width="24" Height="24" CornerRadius="12" Background="#2A7FB2FF"
+                            VerticalAlignment="Top">
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12"
+                                   FontWeight="SemiBold" Foreground="#F5F5F5" Text="2" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock FontSize="13" Foreground="{StaticResource TextPrimaryBrush}" Text="在确认卡片里改两笔" />
+                        <TextBlock FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"
+                                   Text="时间 / 重复 / 提醒 / 颜色 / 子项，回车即加入" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="26" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Width="24" Height="24" CornerRadius="12" Background="#2A7FB2FF"
+                            VerticalAlignment="Top">
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12"
+                                   FontWeight="SemiBold" Foreground="#F5F5F5" Text="3" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock FontSize="13" Foreground="{StaticResource TextPrimaryBrush}" Text="托盘图标右键还有更多" />
+                        <TextBlock FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"
+                                   Text="浮窗 / 桌面 / 置顶、开机启动、设置、检查更新" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+
+            <Grid Grid.Row="2" Margin="0,18,0,0">
+                <TextBlock x:Name="SourceText" VerticalAlignment="Center" FontSize="10.5"
+                           Foreground="{StaticResource TextTertiaryBrush}" />
+                <Button HorizontalAlignment="Right" Padding="16,6" Background="#3A7FB2FF" BorderThickness="0"
+                        Click="OnStartClick" Content="开始使用" CornerRadius="5" FontSize="12" />
+            </Grid>
+        </Grid>
+    </local:GlassSurface>
+</Window>

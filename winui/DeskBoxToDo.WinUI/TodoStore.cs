@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -122,6 +122,15 @@ namespace DeskBoxToDo.WinUI
         /// <summary>Due date string the reminder was already shown for.</summary>
         public string NotifiedForDue { get; set; } = "";
 
+        /// <summary>How many minutes before the due time the reminder fires (null = default 5).</summary>
+        public int? ReminderOffsetMinutes { get; set; }
+
+        /// <summary>When "稍后 10 分钟" was used, the moment the reminder should fire again.</summary>
+        public DateTimeOffset? SnoozedUntil { get; set; }
+
+        /// <summary>Snooze timestamp already notified, so one snooze fires once.</summary>
+        public string SnoozeNotifiedFor { get; set; } = "";
+
         public bool IsToday
         {
             get
@@ -134,6 +143,21 @@ namespace DeskBoxToDo.WinUI
                 return DueDate.Value.ToLocalTime().Date == DateTimeOffset.Now.Date;
             }
         }
+
+        /// <summary>Star only exists on important rows (DeskBox hides it otherwise).</summary>
+        public Microsoft.UI.Xaml.Visibility StarVisibility =>
+            IsImportant ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+        /// <summary>An overdue row turns its due line into the system caution colour.</summary>
+        public Microsoft.UI.Xaml.Media.Brush SubtitleBrush =>
+            DueDate != null && DueDate.Value < DateTimeOffset.Now && !IsCompleted
+                ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF0, 0xB4, 0x4B))
+                : new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xB8, 0xFF, 0xFF, 0xFF));
+
+        public Microsoft.UI.Xaml.Visibility SubtitleVisibility =>
+            string.IsNullOrEmpty(Subtitle)
+                ? Microsoft.UI.Xaml.Visibility.Collapsed
+                : Microsoft.UI.Xaml.Visibility.Visible;
 
         /// <summary>Second line on the card: due text plus recurrence hint.</summary>
         public string Subtitle
@@ -185,8 +209,63 @@ namespace DeskBoxToDo.WinUI
     /// <summary>Reads the DeskBoxToDo store (standalone file, or DeskBox's widget file).</summary>
     public static class TodoStore
     {
-        public static string DataRoot =>
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DeskBoxToDo");
+        private static string _resolvedRoot;
+
+        /// <summary>
+        /// Where config/todo files live. Normally %LOCALAPPDATA%\DeskBoxToDo; when
+        /// that folder cannot be written (locked-down machine, portable copy, or a
+        /// sandboxed launcher) it falls back to a writable folder next to the exe
+        /// instead of silently losing every edit.
+        /// </summary>
+        public static string DataRoot => _resolvedRoot ??= ResolveDataRoot();
+
+        /// <summary>Set when the primary folder was not writable; the UI can show it.</summary>
+        public static string DataRootNotice { get; private set; } = "";
+
+        private static string ResolveDataRoot()
+        {
+            string overrideRoot = Environment.GetEnvironmentVariable("DESKBOX_TODO_DATA");
+            if (!string.IsNullOrWhiteSpace(overrideRoot))
+            {
+                Directory.CreateDirectory(overrideRoot);
+                return overrideRoot;
+            }
+
+            string primary = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DeskBoxToDo");
+            if (IsWritable(primary))
+            {
+                return primary;
+            }
+
+            string portable = Path.Combine(AppContext.BaseDirectory, "data");
+            if (IsWritable(portable))
+            {
+                DataRootNotice = "默认数据目录不可写，已改用程序目录下的 data（便携模式）";
+                return portable;
+            }
+
+            string temp = Path.Combine(Path.GetTempPath(), "DeskBoxToDo");
+            Directory.CreateDirectory(temp);
+            DataRootNotice = "默认数据目录不可写，已改用临时目录";
+            return temp;
+        }
+
+        private static bool IsWritable(string folder)
+        {
+            try
+            {
+                Directory.CreateDirectory(folder);
+                string probe = Path.Combine(folder, ".write-probe");
+                File.WriteAllText(probe, "1");
+                File.Delete(probe);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         public static string ConfigPath => Path.Combine(DataRoot, "config.json");
 
@@ -261,8 +340,22 @@ namespace DeskBoxToDo.WinUI
                             IsImportant = Flag(row, "isImportant"),
                             ColorMarker = OptionalText(row, "colorMarker"),
                             Notes = Text(row, "notes"),
-                            NotifiedForDue = Text(row, "reminderDismissedForDueDate")
+                            NotifiedForDue = Text(row, "reminderDismissedForDueDate"),
+                            SnoozeNotifiedFor = Text(row, "snoozeLastNotifiedAt")
                         };
+
+                        if (row.TryGetProperty("reminderOffsetMinutes", out JsonElement offset) &&
+                            offset.ValueKind == JsonValueKind.Number)
+                        {
+                            item.ReminderOffsetMinutes = offset.GetInt32();
+                        }
+
+                        string snoozed = OptionalText(row, "snoozedUntil");
+                        if (!string.IsNullOrEmpty(snoozed) &&
+                            DateTimeOffset.TryParse(snoozed, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTimeOffset snoozedAt))
+                        {
+                            item.SnoozedUntil = snoozedAt;
+                        }
 
                         string due = OptionalText(row, "dueDate");
                         if (!string.IsNullOrEmpty(due) &&

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
@@ -16,13 +16,27 @@
     <LangVersion>latest</LangVersion>
     <EnableMsixTooling>false</EnableMsixTooling>
     <AppxGeneratePriEnabled>false</AppxGeneratePriEnabled>
-    <Version>2.0.0</Version>
-    <FileVersion>2.0.0.0</FileVersion>
-    <ProductVersion>2.0.0</ProductVersion>
+    <!--
+      This app has no .resw resources, and the WinAppSDK PRI pipeline needs the
+      Visual Studio "AppxPackage" MSBuild task, which a plain `dotnet build`
+      install does not carry. Turning the MRT tooling off keeps `dotnet build`
+      fully working (the XAML compiler still emits the .xbf files next to the exe).
+    -->
+    <EnableCoreMrtTooling>false</EnableCoreMrtTooling>
+    <Version>2.0.3</Version>
+    <FileVersion>2.0.3.0</FileVersion>
+    <ProductVersion>2.0.3</ProductVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.7.260224002" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Only the WinForms assemblies (NotifyIcon/ContextMenuStrip), not the WPF markup pipeline. -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+    <!-- UIAutomationClient: reading the selected text without injecting Ctrl+C. -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
   </ItemGroup>
 
   <ItemGroup>
@@ -33,4 +47,19 @@
     <!-- 复用 1.x 的规则解析器（纯 C#，无 WinForms 依赖） -->
     <Compile Include="..\..\src\TodoParser.cs" Link="Shared\TodoParser.cs" />
   </ItemGroup>
+
+  <!--
+    With the MRT/PRI pipeline disabled (see EnableCoreMrtTooling above) the XAML
+    compiler leaves loose .xbf files in the build output. `dotnet publish` does
+    not pick those up, so a published exe would fail at LoadComponent. Copy the
+    whole .xbf tree next to the published exe.
+  -->
+  <Target Name="CopyXbfToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <XbfPayload Include="$(TargetDir)**\*.xbf" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(XbfPayload)"
+      DestinationFiles="@(XbfPayload->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 </Project>

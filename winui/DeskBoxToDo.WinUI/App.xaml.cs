@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.UI.Xaml;
 
 namespace DeskBoxToDo.WinUI
@@ -19,6 +19,13 @@ namespace DeskBoxToDo.WinUI
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
         {
+            if (!SingleInstance.TryAcquire())
+            {
+                SingleInstance.NotifyExisting();
+                Exit();
+                return;
+            }
+
             _window = new MainWindow();
             _window.Activate();
         }
