@@ -12,6 +12,7 @@ using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using Windows.System;
 using Windows.UI;
+using Windows.UI.ViewManagement;
 using WinRT;
 
 namespace DeskBoxToDo.WinUI
@@ -57,8 +58,9 @@ namespace DeskBoxToDo.WinUI
             ImportantSwitch.IsOn = draft.Important;
             StepsBox.Text = string.Join("\r\n", draft.Steps ?? new List<string>());
 
-            HookConfirmDrag();
-            HookNativeDrag(WinRT.Interop.WindowNative.GetWindowHandle(this));
+            HookMinimumSize(WinRT.Interop.WindowNative.GetWindowHandle(this));
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(HeaderRow);
             TitleBox.Focus(FocusState.Programmatic);
         }
 
@@ -172,6 +174,53 @@ namespace DeskBoxToDo.WinUI
 
             return false;
         }
+        private void HideSystemCaptionButtons(IntPtr hwnd)
+        {
+            // Our own header already has a close button; drop the system ones so
+            // no light caption strip is drawn on the glass.
+            int style = GetWindowLong(hwnd, -16);
+            style &= ~0x00080000; // WS_SYSMENU
+            SetWindowLong(hwnd, -16, style);
+            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027);
+        }
+        private const int WmGetMinMaxInfo = 0x0024;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MINMAXINFO
+        {
+            public POINT Reserved;
+            public POINT MaxSize;
+            public POINT MaxPosition;
+            public POINT MinTrackSize;
+            public POINT MaxTrackSize;
+        }
+
+        private delegate IntPtr MinMaxProc(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+
+        private MinMaxProc _minMaxProc;
+        private IntPtr _minMaxOldProc;
+
+
+
+        /// <summary>Keeps the dialog from being resized below a usable size.</summary>
+        private void HookMinimumSize(IntPtr hwnd)
+        {
+            _minMaxProc = (h, message, wParam, lParam) =>
+            {
+                IntPtr result = CallWindowProc(_minMaxOldProc, h, message, wParam, lParam);
+                if (message == WmGetMinMaxInfo)
+                {
+                    var info = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+                    info.MinTrackSize.X = Dpi.Px(hwnd, 460);
+                    info.MinTrackSize.Y = Dpi.Px(hwnd, 520);
+                    Marshal.StructureToPtr(info, lParam, false);
+                }
+
+                return result;
+            };
+
+            _minMaxOldProc = SetWindowLongPtr(hwnd, -4, Marshal.GetFunctionPointerForDelegate(_minMaxProc));
+        }
         private void ConfigureWindow()
         {
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -180,10 +229,34 @@ namespace DeskBoxToDo.WinUI
 
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
-                presenter.IsResizable = false;
+                presenter.IsResizable = true;
                 presenter.IsMaximizable = false;
                 presenter.IsMinimizable = false;
             }
+
+            // Dark caption: the default system title bar would be white on glass.
+            // Win11: paint the caption itself (the button strip ignores AppWindow colours
+            // unless the caption colour is set through DWM).
+            int captionColor = unchecked((int)0x00261C18); // COLORREF 0x00BBGGRR = rgb(24,28,38)
+            DwmSetWindowAttribute(hwnd, 35, ref captionColor, sizeof(int));
+            int captionTextColor = unchecked((int)0x00F2F4F8); // near-white text
+            DwmSetWindowAttribute(hwnd, 36, ref captionTextColor, sizeof(int));
+
+            int darkMode = 1;
+            DwmSetWindowAttribute(hwnd, 20, ref darkMode, sizeof(int));
+
+            var titleBar = appWindow.TitleBar;
+            titleBar.BackgroundColor = Color.FromArgb(255, 24, 28, 38);
+            titleBar.InactiveBackgroundColor = Color.FromArgb(255, 24, 28, 38);
+            titleBar.ForegroundColor = Colors.White;
+            titleBar.InactiveForegroundColor = Color.FromArgb(200, 226, 230, 240);
+            titleBar.ButtonBackgroundColor = Colors.Transparent;
+            titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+            titleBar.ButtonForegroundColor = Colors.White;
+            titleBar.ButtonInactiveForegroundColor = Color.FromArgb(160, 226, 230, 240);
+            titleBar.ButtonHoverBackgroundColor = Color.FromArgb(40, 255, 255, 255);
+            titleBar.ButtonHoverForegroundColor = Colors.White;
+            HideSystemCaptionButtons(WinRT.Interop.WindowNative.GetWindowHandle(this));
 
             int round = 2;
             DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));

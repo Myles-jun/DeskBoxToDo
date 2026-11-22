@@ -1097,6 +1097,7 @@ namespace DeskBoxToDo.WinUI
                     ShowFromTray();
                 };
                 _reminderWindow.Activate();
+                RaiseAsOwnedDialog(_reminderWindow);
                 Console.WriteLine("reminder toast: " + item.Text);
 
                 var timer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
@@ -1147,6 +1148,26 @@ namespace DeskBoxToDo.WinUI
             Application.Current.Exit();
         }
 
+        /// <summary>
+        /// Makes a dialog owned by the main window and pushes it to the top of the
+        /// z-order, so the main window can never cover it.
+        /// </summary>
+        private void RaiseAsOwnedDialog(Window dialog)
+        {
+            try
+            {
+                IntPtr owner = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                IntPtr child = WinRT.Interop.WindowNative.GetWindowHandle(dialog);
+                SetWindowLongPtr(child, -8 /* GWLP_HWNDPARENT */, owner);
+                SetWindowPos(child, IntPtr.Zero, 0, 0, 0, 0, 0x0013); // NOSIZE|NOMOVE|NOACTIVATE? keep flags below
+                SetWindowPos(child, (IntPtr)0 /* HWND_TOP */, 0, 0, 0, 0, 0x0003); // NOMOVE|NOSIZE
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("raise dialog failed: " + ex.Message);
+            }
+        }
+
         private void OpenConfirmWindow(string raw)
         {
             TodoDraft draft = TodoParser.Parse(raw, AppConfig.Load(), DateTimeOffset.Now);
@@ -1166,6 +1187,7 @@ namespace DeskBoxToDo.WinUI
                 Console.WriteLine("confirm add: " + result.Title);
             };
             window.Activate();
+            RaiseAsOwnedDialog(window);
         }
 
         private void OpenSettingsWindow()
@@ -1191,6 +1213,7 @@ namespace DeskBoxToDo.WinUI
                 Console.WriteLine("settings saved: mode=" + result.Mode + " hotkey=" + result.Modifiers + "/" + result.Key);
             };
             window.Activate();
+            RaiseAsOwnedDialog(window);
         }
 
         private void ReRegisterHotkey()
@@ -1451,6 +1474,7 @@ namespace DeskBoxToDo.WinUI
             {
                 var notice = new ReminderWindow("热键提示", message);
                 notice.Activate();
+                RaiseAsOwnedDialog(notice);
                 var timer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
                 timer.Tick += (sender, args) =>
                 {

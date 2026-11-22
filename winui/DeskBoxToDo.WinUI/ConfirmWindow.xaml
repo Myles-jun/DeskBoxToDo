@@ -14,10 +14,12 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel x:Name="HeaderRow" Grid.Row="0" Orientation="Horizontal" Spacing="8" Background="Transparent">
-            <FontIcon Glyph="&#xE8FD;" FontSize="14" Foreground="#F2F4F8" />
-            <TextBlock Text="加入待办" FontSize="13" FontWeight="SemiBold" Foreground="#F2F4F8" />
-        </StackPanel>
+        <Grid x:Name="HeaderRow" Grid.Row="0" Height="34" Background="Transparent">
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE8FD;" FontSize="14" Foreground="#F2F4F8" />
+                <TextBlock Text="加入待办" FontSize="13" FontWeight="SemiBold" Foreground="#F2F4F8" />
+            </StackPanel>
+        </Grid>
 
         <TextBox x:Name="TitleBox" Grid.Row="1" Margin="0,10,0,0" FontSize="18" FontWeight="SemiBold"
                  Background="#12FFFFFF" BorderThickness="0" CornerRadius="9" Padding="10,8"

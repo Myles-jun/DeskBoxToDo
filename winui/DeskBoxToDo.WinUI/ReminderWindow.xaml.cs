@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using Windows.UI;
+using Windows.UI.ViewManagement;
 using WinRT;
 
 namespace DeskBoxToDo.WinUI
@@ -33,6 +34,15 @@ namespace DeskBoxToDo.WinUI
             Activated += (sender, args) => Console.WriteLine("reminder window active");
         }
 
+        private void HideSystemCaptionButtons(IntPtr hwnd)
+        {
+            // Our own header already has a close button; drop the system ones so
+            // no light caption strip is drawn on the glass.
+            int style = GetWindowLong(hwnd, -16);
+            style &= ~0x00080000; // WS_SYSMENU
+            SetWindowLong(hwnd, -16, style);
+            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027);
+        }
         private void ConfigureWindow()
         {
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -46,6 +56,30 @@ namespace DeskBoxToDo.WinUI
                 presenter.IsMinimizable = false;
                 presenter.IsAlwaysOnTop = true;
             }
+
+            // Dark caption: the default system title bar would be white on glass.
+            // Win11: paint the caption itself (the button strip ignores AppWindow colours
+            // unless the caption colour is set through DWM).
+            int captionColor = unchecked((int)0x00261C18); // COLORREF 0x00BBGGRR = rgb(24,28,38)
+            DwmSetWindowAttribute(hwnd, 35, ref captionColor, sizeof(int));
+            int captionTextColor = unchecked((int)0x00F2F4F8); // near-white text
+            DwmSetWindowAttribute(hwnd, 36, ref captionTextColor, sizeof(int));
+
+            int darkMode = 1;
+            DwmSetWindowAttribute(hwnd, 20, ref darkMode, sizeof(int));
+
+            var titleBar = appWindow.TitleBar;
+            titleBar.BackgroundColor = Color.FromArgb(255, 24, 28, 38);
+            titleBar.InactiveBackgroundColor = Color.FromArgb(255, 24, 28, 38);
+            titleBar.ForegroundColor = Colors.White;
+            titleBar.InactiveForegroundColor = Color.FromArgb(200, 226, 230, 240);
+            titleBar.ButtonBackgroundColor = Colors.Transparent;
+            titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+            titleBar.ButtonForegroundColor = Colors.White;
+            titleBar.ButtonInactiveForegroundColor = Color.FromArgb(160, 226, 230, 240);
+            titleBar.ButtonHoverBackgroundColor = Color.FromArgb(40, 255, 255, 255);
+            titleBar.ButtonHoverForegroundColor = Colors.White;
+            HideSystemCaptionButtons(WinRT.Interop.WindowNative.GetWindowHandle(this));
 
             int round = 2;
             DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
