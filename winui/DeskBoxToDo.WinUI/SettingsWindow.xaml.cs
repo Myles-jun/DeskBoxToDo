@@ -61,6 +61,11 @@ namespace DeskBoxToDo.WinUI
             HotkeyBox.SelectedIndex = hotkeyIndex < 0 ? 0 : hotkeyIndex;
 
             ModeBox.SelectedIndex = string.Equals(mode, "deskbox", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+
+            var ai = ReadAiConfig();
+            AiBaseBox.Text = ai.BaseUrl;
+            AiModelBox.Text = ai.Model;
+            AiKeyBox.Password = ai.ApiKey;
         }
 
         private void HideSystemCaptionButtons(IntPtr hwnd)
@@ -102,8 +107,10 @@ namespace DeskBoxToDo.WinUI
             titleBar.InactiveBackgroundColor = Color.FromArgb(255, 24, 28, 38);
             titleBar.ForegroundColor = Colors.White;
             titleBar.InactiveForegroundColor = Color.FromArgb(200, 226, 230, 240);
-            titleBar.ButtonBackgroundColor = Colors.Transparent;
-            titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+            // Match the caption: a transparent button background shows up as a
+            // white box on the glass.
+            titleBar.ButtonBackgroundColor = Color.FromArgb(255, 24, 28, 38);
+            titleBar.ButtonInactiveBackgroundColor = Color.FromArgb(255, 24, 28, 38);
             titleBar.ButtonForegroundColor = Colors.White;
             titleBar.ButtonInactiveForegroundColor = Color.FromArgb(160, 226, 230, 240);
             titleBar.ButtonHoverBackgroundColor = Color.FromArgb(40, 255, 255, 255);
@@ -127,29 +134,68 @@ namespace DeskBoxToDo.WinUI
 
         private void ApplyAcrylic()
         {
-            if (!DesktopAcrylicController.IsSupported())
+            _acrylic = GlassHelper.Attach(this);
+        }
+        private static (string BaseUrl, string Model, string ApiKey) ReadAiConfig()
+        {
+            string baseUrl = "https://api.deepseek.com/v1";
+            string model = "deepseek-chat";
+            string key = "";
+            try
             {
-                return;
+                string path = System.IO.Path.Combine(TodoStore.DataRoot, "config.json");
+                if (System.IO.File.Exists(path))
+                {
+                    using (JsonDocument document = JsonDocument.Parse(System.IO.File.ReadAllText(path)))
+                    {
+                        JsonElement root = document.RootElement;
+                        if (root.TryGetProperty("llmBaseUrl", out JsonElement b) && b.ValueKind == JsonValueKind.String)
+                        {
+                            baseUrl = b.GetString() ?? baseUrl;
+                        }
+
+                        if (root.TryGetProperty("llmModel", out JsonElement m) && m.ValueKind == JsonValueKind.String)
+                        {
+                            model = m.GetString() ?? model;
+                        }
+
+                        if (root.TryGetProperty("llmApiKey", out JsonElement k) && k.ValueKind == JsonValueKind.String)
+                        {
+                            key = k.GetString() ?? "";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("read ai config failed: " + ex.Message);
             }
 
-            _configuration = new SystemBackdropConfiguration
-            {
-                IsInputActive = true,
-                Theme = SystemBackdropTheme.Dark
-            };
-
-            _acrylic = new DesktopAcrylicController
-            {
-                Kind = DesktopAcrylicKind.Base,
-                TintColor = Color.FromArgb(255, 24, 28, 38),
-                FallbackColor = Color.FromArgb(255, 24, 28, 38),
-                TintOpacity = 0.30f,
-                LuminosityOpacity = 0.55f
-            };
-            _acrylic.SetSystemBackdropConfiguration(_configuration);
-            _acrylic.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+            return (baseUrl, model, key);
         }
 
+        private static void WriteAiConfig(string baseUrl, string model, string apiKey)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(TodoStore.DataRoot, "config.json");
+                JsonObject root = System.IO.File.Exists(path)
+                    ? (JsonNode.Parse(System.IO.File.ReadAllText(path)) as JsonObject ?? new JsonObject())
+                    : new JsonObject();
+
+                root["llmBaseUrl"] = string.IsNullOrWhiteSpace(baseUrl) ? "https://api.deepseek.com/v1" : baseUrl;
+                root["llmModel"] = string.IsNullOrWhiteSpace(model) ? "deepseek-chat" : model;
+                root["llmApiKey"] = apiKey ?? "";
+                root["llmEnabled"] = !string.IsNullOrWhiteSpace(apiKey);
+
+                System.IO.Directory.CreateDirectory(TodoStore.DataRoot);
+                System.IO.File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = false }));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("write ai config failed: " + ex.Message);
+            }
+        }
         private void OnSaveClick(object sender, RoutedEventArgs args)
         {
             int hour = HourBox.SelectedIndex < 0 ? 8 : HourBox.SelectedIndex;
@@ -157,6 +203,7 @@ namespace DeskBoxToDo.WinUI
             string mode = ModeBox.SelectedIndex == 1 ? "deskbox" : "standalone";
             int hotkeyIndex = HotkeyBox.SelectedIndex < 0 ? 0 : HotkeyBox.SelectedIndex;
 
+            WriteAiConfig(AiBaseBox.Text.Trim(), AiModelBox.Text.Trim(), AiKeyBox.Password);
             Saved?.Invoke(this, (hour, minute, mode, Hotkeys[hotkeyIndex].Modifiers, Hotkeys[hotkeyIndex].Key));
             Close();
         }

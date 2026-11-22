@@ -73,8 +73,10 @@ namespace DeskBoxToDo.WinUI
             titleBar.InactiveBackgroundColor = Color.FromArgb(255, 24, 28, 38);
             titleBar.ForegroundColor = Colors.White;
             titleBar.InactiveForegroundColor = Color.FromArgb(200, 226, 230, 240);
-            titleBar.ButtonBackgroundColor = Colors.Transparent;
-            titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+            // Match the caption: a transparent button background shows up as a
+            // white box on the glass.
+            titleBar.ButtonBackgroundColor = Color.FromArgb(255, 24, 28, 38);
+            titleBar.ButtonInactiveBackgroundColor = Color.FromArgb(255, 24, 28, 38);
             titleBar.ButtonForegroundColor = Colors.White;
             titleBar.ButtonInactiveForegroundColor = Color.FromArgb(160, 226, 230, 240);
             titleBar.ButtonHoverBackgroundColor = Color.FromArgb(40, 255, 255, 255);
@@ -96,29 +98,8 @@ namespace DeskBoxToDo.WinUI
 
         private void ApplyAcrylic()
         {
-            if (!DesktopAcrylicController.IsSupported())
-            {
-                return;
-            }
-
-            _configuration = new SystemBackdropConfiguration
-            {
-                IsInputActive = true,
-                Theme = SystemBackdropTheme.Dark
-            };
-
-            _acrylic = new DesktopAcrylicController
-            {
-                Kind = DesktopAcrylicKind.Base,
-                TintColor = Color.FromArgb(255, 24, 28, 38),
-                FallbackColor = Color.FromArgb(255, 24, 28, 38),
-                TintOpacity = 0.35f,
-                LuminosityOpacity = 0.55f
-            };
-            _acrylic.SetSystemBackdropConfiguration(_configuration);
-            _acrylic.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+            _acrylic = GlassHelper.Attach(this);
         }
-
         private void OnCloseClick(object sender, RoutedEventArgs args)
         {
             Close();

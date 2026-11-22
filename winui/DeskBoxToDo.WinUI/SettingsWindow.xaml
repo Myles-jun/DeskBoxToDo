@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -43,7 +44,14 @@
             <ComboBox x:Name="HotkeyBox" HorizontalAlignment="Stretch" />
         </StackPanel>
 
-        <TextBlock Grid.Row="4" Text="修改数据来源后需要重启程序生效。" FontSize="10.5" Foreground="#8A8F9A"
+        <StackPanel Grid.Row="4" Spacing="4" Margin="0,12,0,0">
+            <TextBlock Text="AI 重解析（可留空，默认用 DeepSeek）" FontSize="11.5" Foreground="#9AA1AF" />
+            <TextBox x:Name="AiBaseBox" PlaceholderText="接口地址，如 https://api.deepseek.com/v1" />
+            <TextBox x:Name="AiModelBox" PlaceholderText="模型，如 deepseek-chat" />
+            <PasswordBox x:Name="AiKeyBox" PlaceholderText="API Key（sk-…）" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="5" Text="修改数据来源后需要重启程序生效。" FontSize="10.5" Foreground="#8A8F9A"
                    TextWrapping="Wrap" Margin="0,10,0,0" />
 
         <Grid Grid.Row="6" Margin="0,12,0,0">

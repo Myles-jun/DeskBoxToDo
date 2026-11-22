@@ -59,8 +59,6 @@ namespace DeskBoxToDo.WinUI
             StepsBox.Text = string.Join("\r\n", draft.Steps ?? new List<string>());
 
             HookMinimumSize(WinRT.Interop.WindowNative.GetWindowHandle(this));
-            ExtendsContentIntoTitleBar = true;
-            SetTitleBar(HeaderRow);
             TitleBox.Focus(FocusState.Programmatic);
         }
 
@@ -113,50 +111,6 @@ namespace DeskBoxToDo.WinUI
 
             _oldProc = SetWindowLongPtr(hwnd, -4, Marshal.GetFunctionPointerForDelegate(_subclass));
         }
-        private void HookConfirmDrag()
-        {
-            // Drag by the header row only: it is a plain panel, so no control
-            // steals the press and pointer capture behaves predictably.
-            HeaderRow.PointerPressed += (sender, args) =>
-            {
-                var point = args.GetCurrentPoint(HeaderRow);
-                if (!point.Properties.IsLeftButtonPressed)
-                {
-                    return;
-                }
-
-                _dragging = true;
-                Console.WriteLine("confirm press");
-                GetCursorPos(out _dragStartCursor);
-                _dragStartWindow = AppWindow.Position;
-                HeaderRow.CapturePointer(args.Pointer);
-            };
-
-            HeaderRow.PointerMoved += (sender, args) =>
-            {
-                if (!_dragging)
-                {
-                    return;
-                }
-
-                GetCursorPos(out POINT now);
-                AppWindow.Move(new PointInt32(
-                    _dragStartWindow.X + (now.X - _dragStartCursor.X),
-                    _dragStartWindow.Y + (now.Y - _dragStartCursor.Y)));
-                Console.WriteLine("confirm move " + now.X + "," + now.Y);
-            };
-
-            HeaderRow.PointerReleased += (sender, args) =>
-            {
-                if (_dragging)
-                {
-                    _dragging = false;
-                    HeaderRow.ReleasePointerCapture(args.Pointer);
-                    Console.WriteLine("confirm release");
-                }
-            };
-        }
-
         private static bool IsControl(DependencyObject source)
         {
             DependencyObject current = source;
@@ -211,8 +165,8 @@ namespace DeskBoxToDo.WinUI
                 if (message == WmGetMinMaxInfo)
                 {
                     var info = Marshal.PtrToStructure<MINMAXINFO>(lParam);
-                    info.MinTrackSize.X = Dpi.Px(hwnd, 460);
-                    info.MinTrackSize.Y = Dpi.Px(hwnd, 520);
+                    info.MinTrackSize.X = Dpi.Px(hwnd, 360);
+                    info.MinTrackSize.Y = Dpi.Px(hwnd, 400);
                     Marshal.StructureToPtr(info, lParam, false);
                 }
 
@@ -250,8 +204,10 @@ namespace DeskBoxToDo.WinUI
             titleBar.InactiveBackgroundColor = Color.FromArgb(255, 24, 28, 38);
             titleBar.ForegroundColor = Colors.White;
             titleBar.InactiveForegroundColor = Color.FromArgb(200, 226, 230, 240);
-            titleBar.ButtonBackgroundColor = Colors.Transparent;
-            titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+            // Match the caption: a transparent button background shows up as a
+            // white box on the glass.
+            titleBar.ButtonBackgroundColor = Color.FromArgb(255, 24, 28, 38);
+            titleBar.ButtonInactiveBackgroundColor = Color.FromArgb(255, 24, 28, 38);
             titleBar.ButtonForegroundColor = Colors.White;
             titleBar.ButtonInactiveForegroundColor = Color.FromArgb(160, 226, 230, 240);
             titleBar.ButtonHoverBackgroundColor = Color.FromArgb(40, 255, 255, 255);
@@ -264,40 +220,19 @@ namespace DeskBoxToDo.WinUI
             DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
 
 
-            appWindow.Resize(new SizeInt32(Dpi.Px(hwnd, 560), Dpi.Px(hwnd, 620)));
+            appWindow.Resize(new SizeInt32(Dpi.Px(hwnd, 420), Dpi.Px(hwnd, 470)));
 
             RECT work;
             SystemParametersInfo(0x0030, 0, out work, 0);
             appWindow.Move(new PointInt32(
-                work.Left + (work.Right - work.Left - 560) / 2,
-                work.Top + (work.Bottom - work.Top - 620) / 2));
+                work.Left + (work.Right - work.Left - Dpi.Px(hwnd, 420)) / 2,
+                work.Top + (work.Bottom - work.Top - Dpi.Px(hwnd, 470)) / 2));
         }
 
         private void ApplyAcrylic()
         {
-            if (!DesktopAcrylicController.IsSupported())
-            {
-                return;
-            }
-
-            _configuration = new SystemBackdropConfiguration
-            {
-                IsInputActive = true,
-                Theme = SystemBackdropTheme.Dark
-            };
-
-            _acrylic = new DesktopAcrylicController
-            {
-                Kind = DesktopAcrylicKind.Base,
-                TintColor = Color.FromArgb(255, 24, 28, 38),
-                FallbackColor = Color.FromArgb(255, 24, 28, 38),
-                TintOpacity = 0.30f,
-                LuminosityOpacity = 0.55f
-            };
-            _acrylic.SetSystemBackdropConfiguration(_configuration);
-            _acrylic.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+            _acrylic = GlassHelper.Attach(this);
         }
-
         private void BuildPickers()
         {
             foreach (var repeat in Repeats)
