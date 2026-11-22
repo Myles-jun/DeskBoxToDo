@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -15,7 +15,15 @@ namespace DeskBoxToDo.WinUI
 
         private static readonly HttpClient Client = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(15)
+            Timeout = TimeSpan.FromSeconds(15) // API 查询用，够快
+        };
+
+        // 安装包有 13 MB 上下，GitHub 在部分网络下只有几十 KB/s，
+        // 用 15 秒的总超时会必然失败，所以下载走一个不设总时长的客户端，
+        // 只在「连续一段时间没有新数据」时才算失败。
+        private static readonly HttpClient DownloadClient = new HttpClient
+        {
+            Timeout = System.Threading.Timeout.InfiniteTimeSpan
         };
 
         internal sealed class Result
@@ -173,7 +181,9 @@ namespace DeskBoxToDo.WinUI
             }
 
             string target = System.IO.Path.Combine(System.IO.Path.GetTempPath(), fileName);
-            using HttpResponseMessage response = await Client
+            Console.WriteLine("update download start: " + url);
+
+            using HttpResponseMessage response = await DownloadClient
                 .GetAsync(url, HttpCompletionOption.ResponseHeadersRead)
                 .ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
@@ -184,13 +194,33 @@ namespace DeskBoxToDo.WinUI
             {
                 byte[] buffer = new byte[81920];
                 long received = 0;
+                var stall = System.Diagnostics.Stopwatch.StartNew();
                 int read;
-                while ((read = await source.ReadAsync(buffer).ConfigureAwait(false)) > 0)
+                while (true)
                 {
+                    // 60 秒完全没有新数据才判定断线；只要还在下就一直等。
+                    using var stallCts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(60));
+                    try
+                    {
+                        read = await source.ReadAsync(buffer, stallCts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw new TimeoutException("下载中断：60 秒没有收到数据（已下载 " + received / 1024 / 1024 + " MB）");
+                    }
+
+                    if (read <= 0)
+                    {
+                        break;
+                    }
+
                     await destination.WriteAsync(buffer.AsMemory(0, read)).ConfigureAwait(false);
                     received += read;
+                    stall.Restart();
                     progress?.Invoke(received, total);
                 }
+
+                Console.WriteLine("update download done: " + received + " bytes in " + (int)stall.Elapsed.TotalSeconds + "s idle-timer");
             }
 
             return target;

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
@@ -23,9 +23,9 @@
       fully working (the XAML compiler still emits the .xbf files next to the exe).
     -->
     <EnableCoreMrtTooling>false</EnableCoreMrtTooling>
-    <Version>2.0.3</Version>
-    <FileVersion>2.0.3.0</FileVersion>
-    <ProductVersion>2.0.3</ProductVersion>
+    <Version>2.0.4</Version>
+    <FileVersion>2.0.4.0</FileVersion>
+    <ProductVersion>2.0.4</ProductVersion>
   </PropertyGroup>
 
   <ItemGroup>

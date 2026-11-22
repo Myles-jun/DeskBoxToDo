@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -121,6 +121,7 @@ namespace DeskBoxToDo.WinUI
             InstallShellIntegration();
             StartReminderTimer();
             StartAutoUpdateCheck();
+            RunDownloadSelfTest();
 
             // Make sure a freshly started instance is actually seen: it may launch
             // behind an always-on-top app (chat client, overlay, ...).
@@ -1427,6 +1428,30 @@ namespace DeskBoxToDo.WinUI
             timer.Start();
         }
 
+        private void RunDownloadSelfTest()
+        {
+            if (Environment.GetEnvironmentVariable("DBT_UPDATE_DOWNLOAD") != "1")
+            {
+                return;
+            }
+
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    UpdateChecker.Result info = await UpdateChecker.CheckAsync();
+                    AppLog.Write("selftest: asset=" + info.AssetUrl);
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    string path = await UpdateChecker.DownloadAsync(info.AssetUrl, null);
+                    sw.Stop();
+                    AppLog.Write("selftest: download ok " + (new System.IO.FileInfo(path).Length / 1024 / 1024) + " MB in " + (int)sw.Elapsed.TotalSeconds + "s");
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Write("selftest: download FAILED " + ex.GetType().Name + ": " + ex.Message);
+                }
+            });
+        }
         private void StartAutoUpdateCheck()
         {
             _autoUpdateTimer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromHours(6) };

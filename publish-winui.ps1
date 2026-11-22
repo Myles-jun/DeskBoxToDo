@@ -1,9 +1,9 @@
-# Publishes the WinUI 2.x build as a self-contained portable folder + zip.
+﻿# Publishes the WinUI 2.x build as a self-contained portable folder + zip.
 # Run from anywhere:  powershell -ExecutionPolicy Bypass -File publish-winui.ps1
 param(
     [string]$Configuration = 'Release',
     [string]$Runtime = 'win-x64',
-    [string]$Version = '2.0.3'
+    [string]$Version = '2.0.4'
 )
 
 $ErrorActionPreference = 'Stop'

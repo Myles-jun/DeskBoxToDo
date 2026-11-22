@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -15,7 +15,7 @@ namespace DeskBoxToDo.Setup
     internal static class InstallerCore
     {
         public const string ProductName = "DeskBoxToDo";
-        public const string DisplayVersion = "2.0.3";
+        public const string DisplayVersion = "2.0.4";
         public const string Publisher = "DeskBoxToDo";
         public const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\DeskBoxToDo";
         public const string UninstallKeyPath32 = @"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\DeskBoxToDo";
