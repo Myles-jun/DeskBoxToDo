@@ -45,6 +45,7 @@ namespace DeskBoxToDo.WinUI
             ApplyAcrylic();
             HookDrag();
             HookResizeBorders();
+            StartReminderTimer();
             BuildDetailPickers();
 
             TodoList.ItemsSource = _visible;
@@ -655,6 +656,7 @@ namespace DeskBoxToDo.WinUI
                     _dragging = false;
                     HeaderBar.ReleasePointerCapture(args.Pointer);
                     SimplifyBackdropForInteraction(false);
+                    ShowSnapGuides(false, 0, false, 0);
                 }
             };
         }
@@ -932,6 +934,84 @@ namespace DeskBoxToDo.WinUI
             if (args.ClickedItem is TodoItem item)
             {
                 OpenDetail(item);
+            }
+        }
+
+        private Microsoft.UI.Xaml.DispatcherTimer _reminderTimer;
+        private ReminderWindow _reminderWindow;
+
+        private void StartReminderTimer()
+        {
+            _reminderTimer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            _reminderTimer.Tick += (sender, args) => CheckDueReminders();
+            _reminderTimer.Start();
+            CheckDueReminders();
+        }
+
+        /// <summary>Fires the toast for items whose due time arrived (2h catch-up window).</summary>
+        private void CheckDueReminders()
+        {
+            try
+            {
+                DateTimeOffset now = DateTimeOffset.Now;
+                foreach (TodoItem item in TodoStore.Load(out _))
+                {
+                    if (item.IsCompleted || item.DueDate == null)
+                    {
+                        continue;
+                    }
+
+                    DateTimeOffset due = item.DueDate.Value.ToLocalTime();
+                    if (due > now || (now - due) > TimeSpan.FromHours(2))
+                    {
+                        continue;
+                    }
+
+                    string dueIso = item.DueDate.Value.ToString("o");
+                    if (item.NotifiedForDue == dueIso)
+                    {
+                        continue;
+                    }
+
+                    TodoRepo.MarkNotified(item.Id, dueIso);
+                    ShowReminderToast(item);
+                    break; // one toast at a time
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("reminder check failed: " + ex.Message);
+            }
+        }
+
+        private void ShowReminderToast(TodoItem item)
+        {
+            try
+            {
+                string detail = item.Subtitle;
+                _reminderWindow?.Close();
+                _reminderWindow = new ReminderWindow(item.Text, detail);
+                _reminderWindow.OpenRequested += (sender, args) =>
+                {
+                    _reminderWindow?.Close();
+                    _reminderWindow = null;
+                    ShowFromTray();
+                };
+                _reminderWindow.Activate();
+                Console.WriteLine("reminder toast: " + item.Text);
+
+                var timer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+                timer.Tick += (sender, args) =>
+                {
+                    timer.Stop();
+                    _reminderWindow?.Close();
+                    _reminderWindow = null;
+                };
+                timer.Start();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("reminder toast failed: " + ex.Message);
             }
         }
 

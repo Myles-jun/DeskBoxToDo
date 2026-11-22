@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -86,6 +86,21 @@ namespace DeskBoxToDo.WinUI
 
             item["isCompleted"] = completed;
             item["completedAt"] = completed ? DateTimeOffset.UtcNow.ToString("o") : null;
+            WriteRoot(root);
+        }
+
+        /// <summary>Records that the reminder for this due date already fired.</summary>
+        public static void MarkNotified(string id, string dueIso)
+        {
+            JsonObject root = ReadRoot();
+            JsonObject item = Find(root, id);
+            if (item == null)
+            {
+                return;
+            }
+
+            item["reminderLastNotifiedAt"] = DateTimeOffset.UtcNow.ToString("o");
+            item["reminderDismissedForDueDate"] = dueIso;
             WriteRoot(root);
         }
 

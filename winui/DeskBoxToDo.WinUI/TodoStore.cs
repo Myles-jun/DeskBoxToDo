@@ -71,6 +71,9 @@ namespace DeskBoxToDo.WinUI
         }
         public string Notes { get; set; } = "";
 
+        /// <summary>Due date string the reminder was already shown for.</summary>
+        public string NotifiedForDue { get; set; } = "";
+
         public bool IsToday
         {
             get
@@ -209,7 +212,8 @@ namespace DeskBoxToDo.WinUI
                             IsCompleted = Flag(row, "isCompleted"),
                             IsImportant = Flag(row, "isImportant"),
                             ColorMarker = OptionalText(row, "colorMarker"),
-                            Notes = Text(row, "notes")
+                            Notes = Text(row, "notes"),
+                            NotifiedForDue = Text(row, "reminderDismissedForDueDate")
                         };
 
                         string due = OptionalText(row, "dueDate");

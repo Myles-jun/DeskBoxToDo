@@ -1,0 +1,121 @@
+﻿using System;
+using System.Runtime.InteropServices;
+using Microsoft.UI;
+using Microsoft.UI.Composition.SystemBackdrops;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Windows.Graphics;
+using Windows.UI;
+using WinRT;
+
+namespace DeskBoxToDo.WinUI
+{
+    /// <summary>Small glass toast that shows one due todo; click opens the list.</summary>
+    public sealed partial class ReminderWindow : Window
+    {
+        private DesktopAcrylicController _acrylic;
+        private SystemBackdropConfiguration _configuration;
+
+        public event EventHandler OpenRequested;
+
+        public ReminderWindow(string title, string detail)
+        {
+            InitializeComponent();
+            TitleText.Text = title;
+            DetailText.Text = detail;
+
+            ConfigureWindow();
+            ApplyAcrylic();
+
+            RootGrid.Tapped += (sender, args) => OpenRequested?.Invoke(this, EventArgs.Empty);
+            Activated += (sender, args) => Console.WriteLine("reminder window active");
+        }
+
+        private void ConfigureWindow()
+        {
+            IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            WindowId id = Win32Interop.GetWindowIdFromWindow(hwnd);
+            AppWindow appWindow = AppWindow.GetFromWindowId(id);
+
+            if (appWindow.Presenter is OverlappedPresenter presenter)
+            {
+                presenter.SetBorderAndTitleBar(false, false);
+                presenter.IsResizable = false;
+                presenter.IsMaximizable = false;
+                presenter.IsMinimizable = false;
+            }
+
+            int round = 2;
+            DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
+            int borderColor = unchecked((int)0xFFFFFFFE);
+            DwmSetWindowAttribute(hwnd, 34, ref borderColor, sizeof(int));
+
+            int style = GetWindowLong(hwnd, -16);
+            style &= ~(0x00C00000 | 0x00040000 | 0x00080000 | 0x00020000 | 0x00010000);
+            SetWindowLong(hwnd, -16, style);
+            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0027);
+
+            appWindow.Resize(new SizeInt32(360, 124));
+
+            RECT work;
+            SystemParametersInfo(0x0030, 0, out work, 0);
+            appWindow.Move(new PointInt32(work.Right - 360 - 24, work.Bottom - 124 - 24));
+        }
+
+        private void ApplyAcrylic()
+        {
+            if (!DesktopAcrylicController.IsSupported())
+            {
+                return;
+            }
+
+            _configuration = new SystemBackdropConfiguration
+            {
+                IsInputActive = true,
+                Theme = SystemBackdropTheme.Dark
+            };
+
+            _acrylic = new DesktopAcrylicController
+            {
+                Kind = DesktopAcrylicKind.Base,
+                TintColor = Color.FromArgb(255, 24, 28, 38),
+                FallbackColor = Color.FromArgb(255, 24, 28, 38),
+                TintOpacity = 0.35f,
+                LuminosityOpacity = 0.55f
+            };
+            _acrylic.SetSystemBackdropConfiguration(_configuration);
+            _acrylic.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+        }
+
+        private void OnCloseClick(object sender, RoutedEventArgs args)
+        {
+            Close();
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool SystemParametersInfo(uint action, uint param, out RECT data, uint winIni);
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr hwnd, int index);
+
+        [DllImport("user32.dll")]
+        private static extern int SetWindowLong(IntPtr hwnd, int index, int value);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    }
+}

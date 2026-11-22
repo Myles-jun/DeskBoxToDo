@@ -295,6 +295,62 @@ namespace DeskBoxToDo.WinUI
             return new RectInt32(x, y, Math.Max(1, width), Math.Max(1, height));
         }
 
+        /// <summary>Snaps a *moving* window to screen/window edges and shows a guide.</summary>
+        internal PointInt32 SnapDragPosition(int x, int y, int width, int height)
+        {
+            const int SnapDistance = 10;
+            WorkArea working = GetWorkingArea();
+            var verticalTargets = new List<int> { working.X, working.X + working.Width };
+            var horizontalTargets = new List<int> { working.Y, working.Y + working.Height };
+            CollectWindowSnapTargets(verticalTargets, horizontalTargets, working);
+
+            bool showVertical = false;
+            bool showHorizontal = false;
+            int guideX = 0;
+            int guideY = 0;
+
+            foreach (int target in verticalTargets)
+            {
+                if (Math.Abs(x - target) <= SnapDistance)
+                {
+                    x = target;
+                    guideX = 0;
+                    showVertical = true;
+                    break;
+                }
+
+                if (Math.Abs((x + width) - target) <= SnapDistance)
+                {
+                    x = target - width;
+                    guideX = width - 1;
+                    showVertical = true;
+                    break;
+                }
+            }
+
+            foreach (int target in horizontalTargets)
+            {
+                if (Math.Abs(y - target) <= SnapDistance)
+                {
+                    y = target;
+                    guideY = 0;
+                    showHorizontal = true;
+                    break;
+                }
+
+                if (Math.Abs((y + height) - target) <= SnapDistance)
+                {
+                    y = target - height;
+                    guideY = height - 1;
+                    showHorizontal = true;
+                    break;
+                }
+            }
+
+            ShowSnapGuides(showVertical, guideX, showHorizontal, guideY);
+            return new PointInt32(x, y);
+        }
+
         /// <summary>Edges of other visible windows become snap targets too.</summary>
         private void CollectWindowSnapTargets(List<int> vertical, List<int> horizontal, WorkArea working)
         {
