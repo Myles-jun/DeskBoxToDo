@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace DeskBoxToDo
 {
@@ -12,6 +13,35 @@ namespace DeskBoxToDo
     {
         public int DefaultDueHour = 8;
         public int DefaultDueMinute = 0;
+
+        /// <summary>Persists the default due time back into the shared config.json.</summary>
+        public void Save()
+        {
+            try
+            {
+                string path = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DeskBoxToDo", "config.json");
+                JsonObject root;
+                if (File.Exists(path))
+                {
+                    root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? new JsonObject();
+                }
+                else
+                {
+                    root = new JsonObject();
+                }
+
+                root["defaultDueHour"] = DefaultDueHour;
+                root["defaultDueMinute"] = DefaultDueMinute;
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = false }));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("config save failed: " + ex.Message);
+            }
+        }
 
         public static AppConfig Load()
         {

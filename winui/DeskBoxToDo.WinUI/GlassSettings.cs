@@ -17,6 +17,10 @@ namespace DeskBoxToDo.WinUI
 
         public int Height { get; set; } = 560;
 
+        public uint HotkeyModifiers { get; set; } = 0x0001; // MOD_ALT
+
+        public uint HotkeyKey { get; set; } = 0x51;        // VK_Q
+
         private static string FilePath =>
             Path.Combine(TodoStore.DataRoot, "winui-settings.json");
 

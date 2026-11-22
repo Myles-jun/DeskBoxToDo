@@ -49,7 +49,8 @@
                                     <TextBlock Text="数据来源" FontSize="12.5" FontWeight="SemiBold" Margin="0,6,0,0" />
 
                                     <TextBlock x:Name="SourceLabel" FontSize="11.5" Foreground="#8A8F9A" TextWrapping="Wrap" />
-                                    <Button Content="关闭窗口" HorizontalAlignment="Stretch" Margin="0,8,0,0" Click="OnCloseWindowClick" />
+                                    <Button Content="设置…" HorizontalAlignment="Stretch" Margin="0,8,0,0" Click="OnSettingsClick" />
+                                    <Button Content="关闭窗口" HorizontalAlignment="Stretch" Click="OnCloseWindowClick" />
                                     <Button Content="退出程序" HorizontalAlignment="Stretch" Click="OnExitAppClick" />
                                 </StackPanel>
                             </Flyout>

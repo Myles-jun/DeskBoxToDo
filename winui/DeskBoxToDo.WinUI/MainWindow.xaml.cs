@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Linq;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
@@ -46,6 +49,17 @@ namespace DeskBoxToDo.WinUI
             HookDrag();
             HookResizeBorders();
             StartReminderTimer();
+
+            if (Environment.GetEnvironmentVariable("DBT_OPEN_SETTINGS") == "1")
+            {
+                var settingsProbe = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+                settingsProbe.Tick += (sender, args) =>
+                {
+                    settingsProbe.Stop();
+                    OpenSettingsWindow();
+                };
+                settingsProbe.Start();
+            }
             BuildDetailPickers();
 
             TodoList.ItemsSource = _visible;
@@ -1029,21 +1043,13 @@ namespace DeskBoxToDo.WinUI
                 return;
             }
 
-            TodoDraft draft = TodoParser.Parse(raw, AppConfig.Load(), DateTimeOffset.Now);
-            string title = string.IsNullOrWhiteSpace(draft.Title) ? raw : draft.Title;
-            TodoRepo.Save(
-                null,
-                title,
-                draft.Due,
-                draft.RecurrenceMode,
-                draft.ColorMarker,
-                draft.Important,
-                string.IsNullOrEmpty(draft.Notes) ? raw : draft.Notes,
-                draft.Steps);
-
             QuickAddBox.Text = "";
-            Reload();
-            Console.WriteLine("quick add: " + title + " due=" + draft.Due + " rec=" + draft.RecurrenceMode);
+            OpenConfirmWindow(raw);
+        }
+
+        private void OnSettingsClick(object sender, RoutedEventArgs args)
+        {
+            OpenSettingsWindow();
         }
 
         private void OnCloseWindowClick(object sender, RoutedEventArgs args)
@@ -1056,6 +1062,76 @@ namespace DeskBoxToDo.WinUI
             Application.Current.Exit();
         }
 
+        private void OpenConfirmWindow(string raw)
+        {
+            TodoDraft draft = TodoParser.Parse(raw, AppConfig.Load(), DateTimeOffset.Now);
+            var window = new ConfirmWindow(draft, null);
+            window.Confirmed += (sender, result) =>
+            {
+                TodoRepo.Save(
+                    null,
+                    result.Title,
+                    result.Due,
+                    result.Repeat,
+                    result.Color,
+                    result.Important,
+                    raw,
+                    result.Steps.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries));
+                Reload();
+                Console.WriteLine("confirm add: " + result.Title);
+            };
+            window.Activate();
+        }
+
+        private void OpenSettingsWindow()
+        {
+            AppConfig shared = AppConfig.Load();
+            var window = new SettingsWindow(_settings, shared.DefaultDueHour, shared.DefaultDueMinute,
+                TodoStore.CurrentMode(), _hotkeyModifiers, _hotkeyKey);
+            window.Saved += (sender, result) =>
+            {
+                shared.DefaultDueHour = result.Hour;
+                shared.DefaultDueMinute = result.Minute;
+                shared.Save();
+
+                WriteSharedValue("todoMode", result.Mode);
+                _hotkeyModifiers = result.Modifiers;
+                _hotkeyKey = result.Key;
+                _settings.HotkeyModifiers = result.Modifiers;
+                _settings.HotkeyKey = result.Key;
+                _settings.Save();
+
+                ReRegisterHotkey();
+                Reload();
+                Console.WriteLine("settings saved: mode=" + result.Mode + " hotkey=" + result.Modifiers + "/" + result.Key);
+            };
+            window.Activate();
+        }
+
+        private void ReRegisterHotkey()
+        {
+            IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            UnregisterHotKey(hwnd, HotkeyId);
+            RegisterHotKey(hwnd, HotkeyId, _hotkeyModifiers, _hotkeyKey);
+        }
+
+        /// <summary>Writes one scalar into the 1.x config.json so both builds agree.</summary>
+        private static void WriteSharedValue(string key, string value)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(TodoStore.DataRoot, "config.json");
+                JsonObject root = File.Exists(path)
+                    ? (JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? new JsonObject())
+                    : new JsonObject();
+                root[key] = value;
+                File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = false }));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("shared config write failed: " + ex.Message);
+            }
+        }
         private void OnAddClick(object sender, RoutedEventArgs args)
         {
             OpenDetail(null);
@@ -1185,8 +1261,8 @@ namespace DeskBoxToDo.WinUI
         private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
 
         private const int HotkeyId = 0xB1D0;
-        private const uint ModAlt = 0x0001;
-        private const uint VkQ = 0x51;
+        private uint _hotkeyModifiers = 0x0001;
+        private uint _hotkeyKey = 0x51;
         private const uint WmHotkey = 0x0312;
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -1240,7 +1316,7 @@ namespace DeskBoxToDo.WinUI
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             ApplyFrameless(hwnd);
             InstallCursorHook(hwnd);
-            Console.WriteLine("hotkey registered: " + RegisterHotKey(hwnd, HotkeyId, ModAlt, VkQ));
+            Console.WriteLine("hotkey registered: " + RegisterHotKey(hwnd, HotkeyId, _hotkeyModifiers, _hotkeyKey));
 
             if (_tray == null)
             {

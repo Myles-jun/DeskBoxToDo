@@ -45,6 +45,7 @@ namespace DeskBoxToDo.WinUI
                 presenter.IsResizable = false;
                 presenter.IsMaximizable = false;
                 presenter.IsMinimizable = false;
+                presenter.IsAlwaysOnTop = true;
             }
 
             int round = 2;
