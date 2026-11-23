@@ -7,7 +7,7 @@
   "targets": {
     ".NETCoreApp,Version=v8.0": {},
     ".NETCoreApp,Version=v8.0/win-x64": {
-      "DeskBoxToDo/2.0.4": {
+      "DeskBoxToDo/2.0.5": {
         "dependencies": {
           "Microsoft.WindowsAppSDK": "1.7.260224002",
           "Microsoft.Web.WebView2.Core.Projection": "1.0.2903.40",
@@ -164,7 +164,7 @@
     }
   },
   "libraries": {
-    "DeskBoxToDo/2.0.4": {
+    "DeskBoxToDo/2.0.5": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

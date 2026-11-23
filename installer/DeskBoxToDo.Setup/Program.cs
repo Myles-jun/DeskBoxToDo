@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -45,6 +45,7 @@ namespace DeskBoxToDo.Setup
             string directory = GetArgument(args, "/dir=") ?? InstallerCore.FindExistingDirectory() ?? InstallerCore.DefaultDirectory;
             bool desktop = args.Any(a => a.Equals("/desktop", StringComparison.OrdinalIgnoreCase));
             bool launch = args.Any(a => a.Equals("/launch", StringComparison.OrdinalIgnoreCase));
+            bool noLaunch = args.Any(a => a.Equals("/nolaunch", StringComparison.OrdinalIgnoreCase));
 
             if (silent)
             {
@@ -57,10 +58,35 @@ namespace DeskBoxToDo.Setup
                         return;
                     }
 
-                    InstallerCore.Install(directory, desktop, null);
+                    // 静默安装/升级完成后默认重启软件：老版本更新器只传 /S，
+                    // 靠这里保证「更新完自动打开」，/nolaunch 可关掉。
+                    launch = !noLaunch;
+
+                    // 静默升级时不要把用户已有的桌面图标删掉
+                    InstallerCore.Install(directory, desktop, keepExistingDesktopShortcut: silent, null);
+
                     if (launch)
                     {
-                        Process.Start(new ProcessStartInfo(Path.Combine(directory, "DeskBoxToDo.exe")) { UseShellExecute = true });
+                        // 旧实例被 KillRunning 结束后文件句柄才释放，稍等一下再拉起，
+                        // 否则新实例可能和旧实例抢热键、或读不到刚写入的文件。
+                        Thread.Sleep(1200);
+                        for (int attempt = 0; attempt < 4; attempt++)
+                        {
+                            try
+                            {
+                                Process.Start(new ProcessStartInfo(Path.Combine(directory, "DeskBoxToDo.exe"))
+                                {
+                                    UseShellExecute = true,
+                                    WorkingDirectory = directory
+                                });
+                                break;
+                            }
+                            catch (Exception launchError)
+                            {
+                                WriteErrorLog(launchError);
+                                Thread.Sleep(700);
+                            }
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -379,7 +405,7 @@ namespace DeskBoxToDo.Setup
 
             try
             {
-                await Task.Run(() => InstallerCore.Install(directory, _desktop.Checked, report));
+                await Task.Run(() => InstallerCore.Install(directory, _desktop.Checked, false, report));
 
                 _progress.Value = 100;
                 _status.Text = "安装完成";

@@ -15,7 +15,7 @@ namespace DeskBoxToDo.Setup
     internal static class InstallerCore
     {
         public const string ProductName = "DeskBoxToDo";
-        public const string DisplayVersion = "2.0.4";
+        public const string DisplayVersion = "2.0.5";
         public const string Publisher = "DeskBoxToDo";
         public const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\DeskBoxToDo";
         public const string UninstallKeyPath32 = @"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\DeskBoxToDo";
@@ -141,7 +141,7 @@ namespace DeskBoxToDo.Setup
             }
         }
 
-        public static void Install(string directory, bool desktopShortcut, Action<int, string> progress)
+        public static void Install(string directory, bool desktopShortcut, bool keepExistingDesktopShortcut, Action<int, string> progress)
         {
             Directory.CreateDirectory(directory);
 
@@ -193,7 +193,7 @@ namespace DeskBoxToDo.Setup
             {
                 CreateShortcut(DesktopShortcut, exe, directory);
             }
-            else
+            else if (!keepExistingDesktopShortcut)
             {
                 TryDeleteFile(DesktopShortcut);
             }

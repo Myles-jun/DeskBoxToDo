@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 <#
   Builds the app payload and wraps it into a single-file installer:
-    dist\DeskBoxToDo_2.0.4_Setup.exe
+    dist\DeskBoxToDo_2.0.5_Setup.exe
   The installer is per-user (no UAC), overwrites an existing 1.x/2.x install in
   place and keeps user data in %LOCALAPPDATA%\DeskBoxToDo.
 #>
@@ -12,7 +12,7 @@ param(
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $project = Join-Path $root "installer\DeskBoxToDo.Setup"
-$version = "2.0.4"
+$version = "2.0.5"
 
 if (-not $SkipPublish) {
     & (Join-Path $root "publish-winui.ps1")

@@ -8,12 +8,12 @@
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
     <AssemblyName Condition="'$(SetupPayload)'=='0'">Uninstall</AssemblyName>
-    <AssemblyName Condition="'$(SetupPayload)'!='0'">DeskBoxToDo_2.0.4_Setup</AssemblyName>
+    <AssemblyName Condition="'$(SetupPayload)'!='0'">DeskBoxToDo_2.0.5_Setup</AssemblyName>
     <RootNamespace>DeskBoxToDo.Setup</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.0.4</Version>
-    <FileVersion>2.0.4.0</FileVersion>
+    <Version>2.0.5</Version>
+    <FileVersion>2.0.5.0</FileVersion>
     <Product>DeskBoxToDo</Product>
     <Company>DeskBoxToDo</Company>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

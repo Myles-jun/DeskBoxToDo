@@ -232,7 +232,7 @@ namespace DeskBoxToDo.WinUI
             var info = new System.Diagnostics.ProcessStartInfo(path)
             {
                 UseShellExecute = true,
-                Arguments = path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? "/S" : ""
+                Arguments = path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? "/S /launch" : ""
             };
             System.Diagnostics.Process.Start(info);
         }
